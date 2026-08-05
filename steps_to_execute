@@ -1,0 +1,38 @@
+##Run these commands in the VS Code terminal from the project folder:
+
+cd "C:\Users\anany hanu vaishnav\Downloads\AI Athlete Insights (3)"
+npm install
+npm run dev
+
+Vite will print a local URL, usually:
+
+http://localhost:3000
+
+
+Open that URL in your browser.
+
+To run the optional FastAPI backend in a second VS Code terminal:
+
+cd "C:\Users\anany hanu vaishnav\Downloads\AI Athlete Insights (3)\backend"
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+alembic upgrade head
+python -m app.bootstrap
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers
+
+
+The backend will be available at:
+http://localhost:8080
+
+To connect the frontend to that backend, create .env.local in the project root with:
+VITE_ASSESSMENT_API_URL=http://localhost:8080
+
+
+Then restart npm run dev.
+
+Useful checks:
+npm test
+npm run build
+
