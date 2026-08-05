@@ -3,12 +3,11 @@
 ## Frontend Setup
 
 Run the following commands in the VS Code terminal from the project root:
+-- bash
 
-```bash
 cd "C:\Users\anany hanu vaishnav\Downloads\AI Athlete Insights (3)"
 npm install
 npm run dev
-```
 
 Vite will start the development server and print a local URL, typically:
 
