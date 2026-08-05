@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Athlete 360 — Team Build Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0A1723;
+  --ink-2:#122435;
+  --chalk:#F2F4F1;
+  --lane:#2C4358;
+  --track:#E8622A;      /* synthetic-track orange */
+  --turf:#2FA36B;       /* pass / measured */
+  --flag:#F2B705;       /* warning / manual */
+  --mute:#8FA6B8;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);
+  color:var(--chalk);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  font-size:15px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:"Archivo",sans-serif;font-variation-settings:"wdth" 112;margin:0 0 .4em;line-height:1.05;letter-spacing:-.01em}
+h1{font-weight:900;font-size:clamp(2.4rem,6vw,4.6rem);text-transform:uppercase}
+h2{font-weight:800;font-size:clamp(1.5rem,3vw,2.2rem);text-transform:uppercase}
+h3{font-weight:700;font-size:1.12rem}
+h4{font-weight:700;font-size:.95rem;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+p{margin:0 0 1em}
+a{color:var(--track)}
+code,.mono{font-family:"IBM Plex Mono",monospace;font-size:.85em}
+
+/* ---- lane rail: the signature element ---- */
+.rail{position:fixed;left:0;top:0;bottom:0;width:54px;border-right:1px solid var(--lane);
+  background:repeating-linear-gradient(to bottom,transparent 0 23px,var(--lane) 23px 24px);
+  z-index:5;display:flex;flex-direction:column;align-items:center;padding-top:14px}
+.rail span{writing-mode:vertical-rl;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--mute);background:var(--ink);padding:10px 0}
+.wrap{margin-left:54px;max-width:1180px;padding:0 clamp(16px,4vw,56px)}
+
+header{padding:64px 0 28px;border-bottom:1px solid var(--lane)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--track)}
+.lede{max-width:64ch;color:#C9D6E0;font-size:1.05rem}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.chip{border:1px solid var(--lane);border-radius:99px;padding:5px 13px;font-size:12px;font-family:"IBM Plex Mono",monospace;color:var(--mute)}
+.chip b{color:var(--chalk);font-weight:600}
+
+nav{position:sticky;top:0;z-index:6;background:rgba(10,23,35,.94);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--lane);margin-left:54px}
+nav .inner{max-width:1180px;padding:0 clamp(16px,4vw,56px);display:flex;gap:2px;overflow-x:auto}
+nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--mute);
+  font-family:"IBM Plex Mono",monospace;font-size:12px;letter-spacing:.09em;text-transform:uppercase;
+  padding:15px 14px;cursor:pointer;white-space:nowrap}
+nav button:hover{color:var(--chalk)}
+nav button[aria-selected="true"]{color:var(--track);border-bottom-color:var(--track)}
+nav button:focus-visible{outline:2px solid var(--track);outline-offset:-4px}
+
+section.panel{display:none;padding:44px 0 90px}
+section.panel.on{display:block}
+.block{margin:0 0 46px}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+
+.card{background:var(--ink-2);border:1px solid var(--lane);border-radius:4px;padding:18px 20px}
+.card h3{margin-bottom:.3em}
+.card p{margin-bottom:.5em;color:#C1D0DB;font-size:.93rem}
+
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--lane);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);font-weight:400}
+tbody tr:hover{background:#0F2131}
+.tbl-scroll{overflow-x:auto;border:1px solid var(--lane);border-radius:4px}
+
+.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 8px;border-radius:3px;border:1px solid currentColor}
+.t-ai{color:var(--turf)} .t-man{color:var(--flag)} .t-hard{color:var(--track)}
+
+.owner{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--track)}
+
+/* phone mockups */
+.phones{display:flex;gap:20px;overflow-x:auto;padding-bottom:12px}
+.phone{flex:0 0 268px;background:#07121C;border:1px solid var(--lane);border-radius:22px;padding:12px 12px 16px}
+.phone .bar{display:flex;justify-content:space-between;font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--mute);padding:2px 6px 10px}
+.screen{background:#0E1E2C;border-radius:14px;padding:14px;min-height:392px;display:flex;flex-direction:column;gap:10px}
+.screen .ttl{font-family:"Archivo";font-weight:800;font-size:1rem;text-transform:uppercase}
+.screen small{color:var(--mute);font-size:11px;line-height:1.45}
+.viewfinder{border:1px dashed var(--track);border-radius:6px;height:120px;position:relative;
+  background:repeating-linear-gradient(45deg,#0B1A28 0 8px,#0D2030 8px 16px)}
+.viewfinder em{position:absolute;left:8px;bottom:6px;font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:9px;color:var(--track)}
+.silhouette{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:34px;height:96px;border:1px solid rgba(242,244,241,.35);border-radius:16px}
+.result{background:#0A2A1E;border:1px solid var(--turf);border-radius:6px;padding:10px}
+.result b{font-family:"Archivo";font-size:1.7rem;font-weight:900;display:block;line-height:1}
+.btn{background:var(--track);color:#0A1723;border:0;border-radius:5px;padding:9px;font-weight:600;font-size:12px;text-align:center}
+.btn.ghost{background:none;border:1px solid var(--lane);color:var(--chalk)}
+.meter{height:5px;background:#16324a;border-radius:9px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--turf)}
+
+ul.tight{margin:0 0 1em;padding-left:18px;color:#C1D0DB;font-size:.93rem}
+ul.tight li{margin-bottom:5px}
+pre{background:#07121C;border:1px solid var(--lane);border-radius:4px;padding:14px;overflow-x:auto;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;line-height:1.55;color:#B9CCD9}
+.flow{font-family:"IBM Plex Mono",monospace;font-size:11.5px;white-space:pre;overflow-x:auto;color:#B9CCD9}
+
+label.check{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border:1px solid var(--lane);
+  border-radius:4px;margin-bottom:6px;cursor:pointer;font-size:.9rem;background:var(--ink-2)}
+label.check input{margin-top:4px;accent-color:var(--track)}
+label.check span small{display:block;color:var(--mute);font-size:11px}
+.progress{position:sticky;top:49px;background:var(--ink);padding:12px 0;z-index:4;border-bottom:1px solid var(--lane);margin-bottom:18px}
+.progress b{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--track)}
+
+.callout{border-left:3px solid var(--track);padding:2px 0 2px 16px;color:#D7E2EA;margin:0 0 22px}
+footer{border-top:1px solid var(--lane);padding:26px 0 60px;color:var(--mute);font-size:12px;font-family:"IBM Plex Mono",monospace}
+@media (max-width:640px){.rail{display:none}.wrap,nav{margin-left:0}}
+@media (prefers-reduced-motion:no-preference){section.panel.on{animation:fade .28s ease}}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<div class="rail"><span>AI Athlete 360 · Build Spec v1</span></div>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">NeGD · MeitY × MYAS — National Hackathon</div>
+  <h1>AI Athlete<br>360</h1>
+  <p class="lede">This is the working brief for the team. It converts the Concept Note (v3.0), the SAI Technical Handbook and the Final Submission Requirements into one thing: what each of us builds, in what order, and what "done" looks like. Read your section, then read the submission checklist — that checklist is the actual scoring sheet.</p>
+  <div class="meta">
+    <div class="chip">Entity <b>ANAND Learning Academy Pvt. Ltd.</b></div>
+    <div class="chip">Solution <b>AI Athlete 360</b></div>
+    <div class="chip">Stack <b>Flutter · TFLite · FastAPI · Postgres</b></div>
+    <div class="chip">Hard rule <b>No athlete video to any commercial cloud</b></div>
+  </div>
+</header>
+</div>
+
+<nav>
+ <div class="inner" role="tablist">
+  <button role="tab" aria-selected="true" data-p="p1">01 · The brief</button>
+  <button role="tab" aria-selected="false" data-p="p2">02 · 10 tests &amp; AI plan</button>
+  <button role="tab" aria-selected="false" data-p="p3">03 · Architecture</button>
+  <button role="tab" aria-selected="false" data-p="p4">04 · App screens</button>
+  <button role="tab" aria-selected="false" data-p="p5">05 · Who builds what</button>
+  <button role="tab" aria-selected="false" data-p="p6">06 · Submission tracker</button>
+ </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ============ 01 ============ -->
+<section class="panel on" id="p1">
+  <div class="block">
+    <h2>What we are actually building</h2>
+    <p class="lede">One Android + iOS app that walks a PE teacher through all 10 SAI battery fitness tests, records one video per test, measures the result on-device with computer vision, and prints a bilingual report card — with the phone in aeroplane mode. Everything else (dashboards, NSRS integration, analytics) is supporting cast.</p>
+    <div class="callout">The judging line from the Concept Note: <em>build something that works in a dusty school ground, on a budget phone, held by a teacher who has never used an AI app.</em> Every design argument gets settled by that sentence.</div>
+  </div>
+
+  <div class="block grid g3">
+    <div class="card"><h4>Non-negotiable 01</h4><h3>Offline-first, not offline-capable</h3><p>Registration → 10 tests → measurement → report card → PDF, all with zero connectivity. Evaluators will physically switch on aeroplane mode and run 3 tests. No crash, no data loss.</p></div>
+    <div class="card"><h4>Non-negotiable 02</h4><h3>On-device inference</h3><p>No athlete video may touch Google Cloud, AWS, Azure, Colab, Drive or Dropbox — during development or the demo. Cloud LLM is allowed only on de-identified numeric scores for feedback text.</p></div>
+    <div class="card"><h4>Non-negotiable 03</h4><h3>Consent + minors</h3><p>Written parental consent for every under-18 we record while prototyping. DPDP Act 2023. Anonymised consent forms ship inside <code>/compliance/</code>.</p></div>
+    <div class="card"><h4>Non-negotiable 04</h4><h3>Target device floor</h3><p>Android 10, 3 GB RAM, 30 fps rear camera, no Play Services. 120 fps and NPU acceleration are bonuses, never requirements.</p></div>
+    <div class="card"><h4>Non-negotiable 05</h4><h3>One video per test</h3><p>Retakes allowed, but exactly 10 videos per athlete are retained. Auto-tag test name, athlete ID, timestamp, GPS. Reject &lt;720p or out-of-duration clips at capture time.</p></div>
+    <div class="card"><h4>Non-negotiable 06</h4><h3>Honest accuracy</h3><p>No Indian dataset exists. We report our own measured error with sample size, devices and lighting — plus at least 3 documented failure cases. Inflated numbers lose more marks than modest ones.</p></div>
+  </div>
+
+  <div class="block">
+    <h2>Minimum viable submission vs. what wins</h2>
+    <div class="tbl-scroll"><table>
+      <thead><tr><th>Layer</th><th>Mandatory (must exist or we're not evaluated)</th><th>Bonus points we should chase</th></tr></thead>
+      <tbody>
+        <tr><td>App</td><td>Signed release APK, full workflow, AI measurement on 3–4 tests, manual fallback on the rest</td><td>AI on all applicable tests; iOS build via TestFlight</td></tr>
+        <tr><td>Capture</td><td>Protocol guidance + video recording per test</td><td>Live overlays: silhouette, distance, angle and exposure warnings</td></tr>
+        <tr><td>Calibration</td><td>—</td><td>Printed A4 marker / known-size mat auto-detected to give absolute scale</td></tr>
+        <tr><td>Report card</td><td>All 10 raw scores, Hindi + English, PDF export offline</td><td>AI-written encouraging narrative from de-identified scores</td></tr>
+        <tr><td>Coach mode</td><td>—</td><td>Batch roster, athlete-wise <em>and</em> test-wise (station) sequencing, completion grid</td></tr>
+        <tr><td>Docs</td><td>HLD, LLD, model cards, validation report, user guide, known-issues log</td><td>Production architecture: sovereign split, de-identification gateway, 10k concurrent design</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section class="panel" id="p2">
+  <div class="block">
+    <h2>The 10 tests — protocol, AI method, owner</h2>
+    <p class="lede">Protocol column is from the SAI Technical Handbook and is law: attempt counts and scoring rules must match it exactly, because that is what a coach will check first. Difficulty and accuracy targets are from the Concept Note.</p>
+    <div class="tbl-scroll"><table>
+      <thead><tr><th>#</th><th>Test</th><th>SAI protocol (handbook)</th><th>Target</th><th>Our method</th><th>Mode</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><b>Height</b></td><td>Barefoot against wall, heels/buttocks/upper back touching, full breath held; record in cm</td><td>±1 cm</td><td>Pose landmarks (head vertex ↔ ankle) scaled by an A4/known-size marker in frame. Confidence drops if marker not detected → prompt re-measure.</td><td><span class="tag t-ai">AI + marker</span></td></tr>
+        <tr><td>2</td><td><b>Weight</b></td><td>Minimal clothing, barefoot, still, centre of platform; record to 0.1 kg</td><td>OCR assist</td><td>Single photo of the scale display → on-device OCR (ML Kit / Tesseract) with manual override. Auto-BMI from age + gender.</td><td><span class="tag t-man">Manual + OCR</span></td></tr>
+        <tr><td>3</td><td><b>Sit &amp; Reach</b></td><td>Shoes off, knees locked flat, hold reach 1–2 s, best of 3 trials, cm</td><td>±2 cm</td><td>Side-view pose; track wrist landmark vs. heel plane, take max hold sustained ≥1 s across trials. Auto-picks best trial.</td><td><span class="tag t-ai">AI</span></td></tr>
+        <tr><td>4</td><td><b>Vertical Jump</b></td><td>Standing reach marked first; chalk fingertip; 3 attempts; score = jump reach − standing reach</td><td>±2 cm</td><td>Two-phase capture: standing reach frame, then flight-time from take-off/landing frames (h = gt²/8). Cross-check with wrist-height delta. Warn at 30 fps.</td><td><span class="tag t-ai">AI</span></td></tr>
+        <tr><td>5</td><td><b>Broad Jump</b></td><td>Two-foot take-off and landing, 3 attempts, measure to rear heel, cm</td><td>±2 cm</td><td>Ground-plane homography from marker/mat; ankle landmark at landing → distance from take-off line. Reject on backward fall.</td><td><span class="tag t-ai">AI + marker</span></td></tr>
+        <tr><td>6</td><td><b>Medicine Ball Throw</b></td><td>Backward overhead, heels at line; 1 kg girls &amp; U-12, 2 kg boys 12+; best of 2</td><td>±5 cm</td><td><b>Hardest.</b> Small custom-trained ball detector + trajectory tracking to first bounce, on the same ground plane. If detection confidence is low, fall back to assisted manual tape entry. Document the gap honestly.</td><td><span class="tag t-hard">AI (experimental)</span></td></tr>
+        <tr><td>7</td><td><b>30 m Sprint</b></td><td>Standing start, 2 trials, timing ends when torso crosses finish; 0.1 s</td><td>±1 s</td><td>Fixed camera, two virtual lines. Frame-index of first movement → frame-index of torso crossing. Time = Δframes / fps. GPS not usable at this distance.</td><td><span class="tag t-ai">AI</span></td></tr>
+        <tr><td>8</td><td><b>4×10 m Shuttle</b></td><td>Touch line by hand each leg, 4 legs, 2 chances, best time</td><td>±5 s</td><td>Track torso x-position; direction-reversal detection gives turn timestamps and per-leg splits. Multi-person frames resolved by nearest-to-centre track ID.</td><td><span class="tag t-ai">AI</span></td></tr>
+        <tr><td>9</td><td><b>Sit-Ups</b></td><td>Hands clasped behind neck, elbows to knees, partner holds feet; 30 s U-12 / 45 s 12+; fouls nullify the rep</td><td>≥95%</td><td>Hip/torso joint-angle state machine (down→up→down) with foul rules: elbow push-off and non-return invalidate. Timer gates the count.</td><td><span class="tag t-ai">AI</span></td></tr>
+        <tr><td>10</td><td><b>Endurance Run</b></td><td>800 m U-12 / 1.6 km 12+, one attempt, 0.1 s</td><td>±10 s</td><td>Athlete may not carry the phone — so default is <b>lap-line camera</b>: fixed phone at the start/finish counts crossings per athlete bib and times them. GPS/sensor mode offered as a secondary option when the athlete does carry a device.</td><td><span class="tag t-ai">AI + timer</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <h2>The measurement pipeline, once</h2>
+    <p>Every AI test runs through the same seven stages. Only stage 5 is test-specific — that's the whole point of the design and it's what we show the evaluators.</p>
+    <div class="flow">
+ [1] CAPTURE        camera session · 720p/30fps floor · duration + size gate · metadata injection
+      |
+ [2] PRE-FLIGHT     lighting, angle, distance, single-subject, marker-visible checks  → block or warn
+      |
+ [3] FRAME FEED     decode → resize 256/640 → normalise → (optional) ROI crop
+      |
+ [4] POSE / DETECT  MoveNet Thunder (INT8) or MediaPipe Pose · 33 landmarks + visibility
+      |
+ [5] TEST LOGIC     ── state machine (sit-ups, shuttle) ──────────┐
+                    ── event frames (jump, sprint) ───────────────┤ → raw measure
+                    ── homography scaling (height, broad, throw) ─┘
+      |
+ [6] CONFIDENCE     landmark visibility × frame consistency × fps × marker detected × occlusion
+      |
+ [7] RESULT         value + unit + confidence band + "coach review" flag if below threshold
+    </div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Confidence is a first-class output</h3><p>Judges explicitly ask to see the detection, the measurement and the confidence. A number without a confidence band reads as overclaiming. Below threshold → the result is still saved, but flagged <em>Needs coach review</em>, and the coach can accept or re-record.</p></div>
+      <div class="card"><h3>The calibration marker earns us bonus marks</h3><p>Print an A4 sheet with a known-size ArUco/April tag. Detected in-frame, it fixes the pixel→cm scale for height, broad jump and throw. We must demo accuracy <em>with and without</em> it to prove it improves the number.</p></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Model card fields we must fill for every model</h2>
+    <p>One card per model, compiled into <code>/docs/Model_Cards.pdf</code>. Fill these as you integrate, not at the end.</p>
+    <div class="grid g3">
+      <div class="card"><p>Name, version, exact source URL · Which tests it serves · Training dataset (e.g. COCO Keypoints) · Architecture, params, file size, quantisation</p></div>
+      <div class="card"><p>Input tensor shape, colour space, normalisation · Output tensor meaning · Post-processing steps · Inference framework and hardware path</p></div>
+      <div class="card"><p>Measured ms/frame on a <em>named</em> device + chipset · Achievable FPS · Known failure modes (clothing, lighting, angle) · Licence and restrictions</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section class="panel" id="p3">
+  <div class="block">
+    <h2>System shape (HLD level)</h2>
+    <div class="flow">
+  ┌──────────────── DEVICE (the product) ───────────────────┐
+  │ UI layer (Flutter, hi/en)                               │
+  │   ↓                                                     │
+  │ Battery workflow engine ── roster · sequencing · resume  │
+  │   ↓                                                     │
+  │ Capture module ── camera2/AVFoundation · gates · overlay │
+  │   ↓                                                     │
+  │ Inference engine ── TFLite (NNAPI→GPU→CPU fallback)     │
+  │   ↓                                                     │
+  │ Measurement + confidence  →  Report card generator (PDF) │
+  │   ↓                                                     │
+  │ SQLCipher DB  +  encrypted video vault  +  sync queue    │
+  └───────────────────────────┬─────────────────────────────┘
+                              │  resumable chunked upload, TLS 1.3
+                              ▼
+  ┌──────── SOVEREIGN INFRA ────────┐   ┌──── MANAGED / STATELESS ────┐
+  │ video object store (never leaves)│   │ API gateway · auth · rate   │
+  │ de-identification gateway        │──▶│ limit · scoring · dashboards│
+  │ athlete master record            │   │ (no raw video, ever)        │
+  └──────────────┬───────────────────┘   └─────────────────────────────┘
+                 ▼
+      APAAR · Aadhaar e-KYC · NSRS · Khelo India Portal   (design-level only)
+    </div>
+  </div>
+
+  <div class="block grid g2">
+    <div class="card">
+      <h3>Local data model (LLD 4.2.1)</h3>
+      <pre>athlete(id PK, apaar_ref, name_enc, dob, gender,
+        age_band, institution_id, consent_id, synced)
+assessment(id PK, athlete_id FK, coach_id, started_at,
+        mode ENUM('athlete_wise','test_wise'),
+        status ENUM('partial','complete'), gps, device_id)
+test_result(id PK, assessment_id FK, test_code,
+        attempt_no, value, unit, confidence,
+        source ENUM('ai','manual','ocr'),
+        reviewed_by, video_id FK)
+video(id PK, path_enc, sha256, duration_ms, w, h, fps,
+        bytes, captured_at, gps, uploaded, deletable)
+sync_queue(id PK, entity, entity_id, op, attempts,
+        next_retry_at, chunk_offset, etag)
+audit(id PK, actor, action, entity, ts, payload_hash)</pre>
+      <p><b>Indexes:</b> (assessment_id, test_code) unique per attempt; sync_queue(next_retry_at); video(uploaded).</p>
+    </div>
+    <div class="card">
+      <h3>Sync contract (LLD 4.2.5)</h3>
+      <ul class="tight">
+        <li>Queue drains oldest-first, metadata rows before video blobs — scores reach the dashboard even if video is still climbing a 2 Mbps link.</li>
+        <li>Chunked upload with byte-range resume; server returns an ETag per chunk, client stores <code>chunk_offset</code>.</li>
+        <li>Exponential backoff: 5 s → 5 min cap, jittered. Never blocks the UI thread.</li>
+        <li>Conflict rule: same athlete + same test assessed on two devices → keep both attempts, server marks the later one <em>duplicate-pending-review</em>. Never silently overwrite.</li>
+        <li>After a confirmed upload the coach may delete local video to reclaim space; the SHA-256 and result stay.</li>
+      </ul>
+      <h3 style="margin-top:14px">Crash safety</h3>
+      <p>SQLite WAL + write video to a <code>.part</code> file, fsync, atomic rename. On relaunch, orphan <code>.part</code> files are surfaced as "recover this recording?" rather than deleted.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <h3>Core API surface (goes into <code>/docs/API_Spec.yaml</code>)</h3>
+    <div class="tbl-scroll"><table>
+      <thead><tr><th>Endpoint</th><th>Purpose</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">POST /v1/auth/token</td><td>Coach/assessor login</td><td>OAuth2 password + refresh; JWT with role claims</td></tr>
+        <tr><td class="mono">POST /v1/athletes:bulk</td><td>Push offline-created athletes</td><td>Idempotency-Key header; returns server IDs mapped to local UUIDs</td></tr>
+        <tr><td class="mono">POST /v1/assessments</td><td>Upload assessment + all test results</td><td>Single transaction; partial assessments allowed</td></tr>
+        <tr><td class="mono">POST /v1/videos:init → :chunk → :complete</td><td>Resumable video upload</td><td>Sovereign store only; SHA-256 verified server-side</td></tr>
+        <tr><td class="mono">GET /v1/reports/{id}.pdf</td><td>Re-issue report card</td><td>QR on the card resolves here for verification</td></tr>
+        <tr><td class="mono">POST /v1/export/nsrs</td><td>Push de-identified results downstream</td><td>Design-level; NSRS schema TBD, adapter pattern</td></tr>
+      </tbody>
+    </table></div>
+    <p style="margin-top:12px;color:var(--mute);font-size:.9rem">Every endpoint: versioned path, structured error body <code>{code, message, correlation_id}</code>, rate limit headers, and an audit row. Backend ships with a Dockerfile and migration scripts — that's a mandatory artifact, not a nicety.</p>
+  </div>
+</section>
+
+<!-- ============ 04 ============ -->
+<section class="panel" id="p4">
+  <div class="block">
+    <h2>Screen flow the team should build to</h2>
+    <p class="lede">Nine screens carry the whole demo. Everything a PE teacher touches is one thumb-reach away, labelled in plain Hindi and English, and never asks for a typed number when the camera can supply it.</p>
+  </div>
+
+  <div class="phones">
+    <div class="phone"><div class="bar"><span>AI ATHLETE 360</span><span>✈ OFFLINE</span></div><div class="screen">
+      <div class="ttl">Start a session</div>
+      <small>सत्र शुरू करें</small>
+      <div class="btn">Coach / assessor mode</div>
+      <div class="btn ghost">Individual athlete</div>
+      <small style="margin-top:auto">Last sync 2 days ago · 47 records waiting · 3.1 GB local</small>
+      <div class="meter"><i style="width:64%"></i></div>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>SESSION SETUP</span><span>✈</span></div><div class="screen">
+      <div class="ttl">How will you run it?</div>
+      <small>Pick once — results are indexed the same either way.</small>
+      <div class="btn">Test-wise (station)<br><small style="color:#0A1723">One test, whole line of athletes</small></div>
+      <div class="btn ghost">Athlete-wise<br><small>One athlete, all 10 tests</small></div>
+      <small style="margin-top:auto">Roster: 28 athletes · Class VIII-B</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>REGISTER</span><span>✈</span></div><div class="screen">
+      <div class="ttl">Add athlete</div>
+      <small>Name · DOB · gender · school · guardian consent</small>
+      <div class="card" style="padding:9px"><small>Consent recorded<br><b style="color:var(--turf)">Guardian signature captured ✓</b></small></div>
+      <div class="btn ghost">Scan APAAR / ID (optional)</div>
+      <div class="btn">Save offline</div>
+      <small style="margin-top:auto">Athlete ID generated locally, reconciled on sync.</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>TEST 04 · VERTICAL JUMP</span><span>✈</span></div><div class="screen">
+      <div class="ttl">How to do it</div>
+      <small>Stand side-on to the wall. Mark standing reach first. Three attempts. Best jump counts.</small>
+      <div class="viewfinder"><em>Sample clip · 12 s</em></div>
+      <div class="btn">I'm ready — set up camera</div>
+      <small>Equipment: marked wall, chalk, duster.</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>CAMERA GUIDANCE</span><span>30 FPS</span></div><div class="screen">
+      <div class="ttl">Line the athlete up</div>
+      <div class="viewfinder" style="height:190px"><div class="silhouette"></div><em>Move back 1.2 m · marker not seen</em></div>
+      <small style="color:var(--flag)">⚠ Phone is tilted 7°. Straighten before recording.</small>
+      <div class="btn">Record</div>
+      <small>Min 15 s · max 30 s · auto-stops at limit</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>MEASURING</span><span>ON-DEVICE</span></div><div class="screen">
+      <div class="ttl">Reading the jump</div>
+      <div class="viewfinder" style="height:150px"><div class="silhouette"></div><em>take-off f142 · peak f151 · landing f160</em></div>
+      <div class="meter"><i style="width:78%"></i></div>
+      <small>Flight time 0.60 s → height from g·t²/8, cross-checked against wrist reach delta.</small>
+      <small style="color:var(--mute)">Nothing leaves this phone.</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>RESULT</span><span>✈</span></div><div class="screen">
+      <div class="ttl">Attempt 2 of 3</div>
+      <div class="result"><small>Vertical jump</small><b>44.2 cm</b><small>Confidence 0.86 · high</small></div>
+      <div class="card" style="padding:9px"><small>Best so far: 44.2 cm<br>Attempt 1: 41.8 cm</small></div>
+      <div class="btn">Next attempt</div>
+      <div class="btn ghost">Accept &amp; move on</div>
+      <small>Disagree with the number? Tap to enter it by hand — it's logged as manual.</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>ROSTER</span><span>✈</span></div><div class="screen">
+      <div class="ttl">Test-wise progress</div>
+      <small>Sit-ups · 45 s window</small>
+      <div class="card" style="padding:9px"><small><b style="color:var(--turf)">18 done</b> · 3 need review · 7 pending<br>Tap a name to record or re-record.</small></div>
+      <div class="meter"><i style="width:64%"></i></div>
+      <div class="btn ghost">Switch test</div>
+      <small style="margin-top:auto">Part-finished athletes stay open — come back later.</small>
+    </div></div>
+
+    <div class="phone"><div class="bar"><span>REPORT CARD</span><span>✈</span></div><div class="screen">
+      <div class="ttl">Ravi K · 13 yrs</div>
+      <small>All 10 tests · generated on device</small>
+      <div class="card" style="padding:9px"><small>Height 158.4 cm · Weight 44.1 kg · BMI 17.6<br>Sprint 5.1 s · Sit-ups 31 · 1.6 km 7:42<br><span style="color:var(--flag)">Percentile shown is illustrative only</span></small></div>
+      <div class="btn">Export PDF (हिं / EN)</div>
+      <small>QR code on the card verifies it later.</small>
+    </div></div>
+  </div>
+
+  <div class="block" style="margin-top:34px">
+    <h3>Edge cases the app must survive (LLD 4.2.8 — evaluators will try these)</h3>
+    <ul class="tight">
+      <li>App killed mid-recording → recover the partial file, offer re-record, never lose the earlier tests.</li>
+      <li>Storage full during recording → stop cleanly, warn with free-space number, offer to delete already-synced video.</li>
+      <li>Camera permission denied → explain in one line what breaks and deep-link to settings.</li>
+      <li>Athlete leaves frame / two people in frame → confidence collapses, result is flagged, not silently wrong.</li>
+      <li>Overexposed midday sun or dark hall → pre-flight blocks recording with a fix instruction.</li>
+      <li>Device rotated mid-take → lock orientation for the whole session at capture start.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section class="panel" id="p5">
+  <div class="block">
+    <h2>Who builds what</h2>
+    <div class="grid g2">
+      <div class="card"><div class="owner">ANAND</div><h3>Architecture, backend, product</h3><ul class="tight">
+        <li>HLD and LLD documents (these are graded artifacts, not paperwork)</li>
+        <li>FastAPI backend, Postgres schema, Dockerfile, migrations, OpenAPI spec</li>
+        <li>Sovereign vs managed split, de-identification gateway design, 10k-concurrent scaling story</li>
+        <li>Submission packaging, folder structure, final checklist ownership</li>
+      </ul></div>
+      <div class="card"><div class="owner">SHUBHAM</div><h3>Computer vision &amp; AI</h3><ul class="tight">
+        <li>Pose backbone selection + INT8 quantisation; benchmark ms/frame on two real phones</li>
+        <li>Test logic: sit-up state machine, sprint line-crossing, shuttle reversal, jump event frames</li>
+        <li>Homography/marker calibration for height, broad jump, throw</li>
+        <li>Confidence scoring function; model cards; the accuracy validation report</li>
+      </ul></div>
+      <div class="card"><div class="owner">PRACHI</div><h3>App logic, UI, integration</h3><ul class="tight">
+        <li>Flutter app shell, hi/en localisation, workflow engine with both sequencing modes</li>
+        <li>Camera pipeline, duration/size gates, capture overlays and warnings</li>
+        <li>Report card template + offline PDF rendering with Devanagari fonts</li>
+        <li>User guide with per-test camera placement diagrams</li>
+      </ul></div>
+      <div class="card"><div class="owner">AVINASH</div><h3>Data, sync, deployment</h3><ul class="tight">
+        <li>SQLCipher local store, WAL crash-safety, 500-session capacity test</li>
+        <li>Sync queue, resumable chunked upload, conflict resolution, background upload</li>
+        <li>Release signing, build reproducibility (BUILD.md), dependency + licence manifest</li>
+        <li>Device matrix testing and the known-issues log</li>
+      </ul></div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Sequence of work</h2>
+    <p>Order matters more than parallelism here: a beautiful UI over a broken offline store scores nothing, and an accurate model with no APK scores nothing either.</p>
+    <div class="tbl-scroll"><table>
+      <thead><tr><th>Stage</th><th>Exit condition — the thing that proves it's done</th></tr></thead>
+      <tbody>
+        <tr><td><b>Skeleton</b></td><td>APK installs on a 3 GB Android 10 phone, registers an athlete, records a video, stores it encrypted, survives force-kill. No AI yet.</td></tr>
+        <tr><td><b>First measurement</b></td><td>Sit-ups counted from a real recorded video on-device, count matches a human counter within 1 rep. This is our easiest credible win — get it first.</td></tr>
+        <tr><td><b>Three more</b></td><td>Sprint, vertical jump, shuttle run measuring end-to-end with confidence shown. Meets the mandatory "AI on 3–4 tests".</td></tr>
+        <tr><td><b>Full battery</b></td><td>All 10 tests reachable, remaining ones on manual/OCR fallback, report card PDF generates in aeroplane mode in both languages.</td></tr>
+        <tr><td><b>Calibration + coach mode</b></td><td>Marker detection improves a measured number; roster with test-wise sequencing works across 20+ athletes.</td></tr>
+        <tr><td><b>Validation</b></td><td>Ground-truth session: tape, stadiometer, stopwatch, manual counts, ≥2 device tiers, indoor + outdoor. Error tables and 3 failure cases written up.</td></tr>
+        <tr><td><b>Package</b></td><td>Every folder in Section 12 populated, demo video recorded with narration, deck built, declarations signed.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="block">
+    <h3>Rules of engagement while we build</h3>
+    <ul class="tight">
+      <li>Commit early and often — the committee reviews <b>git history</b>, so a single squashed dump looks fabricated.</li>
+      <li>Any footage of a real person: consent form signed before the camera turns on. Under 18 means guardian signature. No exceptions, this is a disqualification rule.</li>
+      <li>Footage lives on our own machines. Not Drive, not Colab, not a shared cloud folder, not "just for a minute".</li>
+      <li>Write the model card and the known-issue in the same commit as the code. Retrofitting docs at the end is where teams lose marks.</li>
+      <li>If a measurement doesn't work, say so in the log and ship the manual fallback. The brief rewards honesty explicitly.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 06 ============ -->
+<section class="panel" id="p6">
+  <div class="progress"><b id="pcount">0 / 22 artifacts ready</b> <span style="color:var(--mute);font-size:12px"> — every unticked box is a reason not to be evaluated</span>
+    <div class="meter" style="margin-top:8px"><i id="pbar" style="width:0%"></i></div>
+  </div>
+
+  <div class="block">
+    <h2>Submission tracker</h2>
+    <p class="lede">Straight from Section 13 of the requirements. Ticks are local to this browser — this is a working sheet, not a database. Folder path is where each file must physically sit inside <code>TeamName_Submission.zip</code>.</p>
+    <div id="checklist"></div>
+  </div>
+
+  <div class="block">
+    <h3>Archive layout — get this exactly right</h3>
+    <pre>ANANDLearningAcademy_Submission.zip
+├── README.md                     team, members, quick links
+├── app/                          signed release APK + install README + test logins
+├── source/                       full repo INCLUDING .git history
+│   ├── BUILD.md                  SDK versions, env vars, commands, build time
+│   └── DEPENDENCIES.md           every library, version, licence
+├── models/                       TFLite/ONNX files (or download script if >100 MB)
+├── docs/  HLD.pdf  LLD.pdf  Model_Cards.pdf  Validation_Report.pdf
+│         User_Guide.pdf  Known_Issues.md  API_Spec.yaml  DB_Schema.sql
+├── demo/                         8–12 min MP4, 1080p, narrated, ≤500 MB
+├── presentation/                 12–20 slide deck
+├── compliance/                   signed declaration, anonymised consents, data inventory
+└── backend/                      source, Dockerfile, deployment steps</pre>
+  </div>
+
+  <div class="block">
+    <h3>Demo video shot list</h3>
+    <ul class="tight">
+      <li>Cold app launch on a real device — never an emulator, they check.</li>
+      <li>Register an athlete, including the consent step.</li>
+      <li>Four tests end-to-end: protocol screen → camera guidance → record → measurement → confidence → result.</li>
+      <li>Visibly toggle aeroplane mode on screen, then complete two more tests and generate the report card offline.</li>
+      <li>Restore connectivity, show the sync queue draining in the background.</li>
+      <li>Export the PDF, open it, show Hindi and English.</li>
+      <li>Narrate throughout. A silent screen recording is rejected outright.</li>
+    </ul>
+  </div>
+
+  <div class="block">
+    <h3>Live session plan — 20 minutes total</h3>
+    <p><b>8 min presentation</b> (team → problem → solution → AI per test → architecture → accuracy → limitations → production readiness) · <b>7 min live demo on a real device</b> · <b>5 min questions.</b> Rehearse the demo on the actual phone, on the actual venue lighting, with the app already installed and a roster pre-loaded.</p>
+  </div>
+</section>
+
+<footer>
+  AI Athlete 360 · internal build spec · derived from Concept Note v3.0 (July 2026), Final Submission Requirements and the SAI Technical Handbook.
+</footer>
+</div>
+
+<script>
+// tabs
+const tabs=[...document.querySelectorAll('nav button')];
+tabs.forEach(b=>b.addEventListener('click',()=>{
+  tabs.forEach(x=>x.setAttribute('aria-selected',x===b));
+  document.querySelectorAll('section.panel').forEach(p=>p.classList.toggle('on',p.id===b.dataset.p));
+  window.scrollTo({top:0,behavior:'smooth'});
+}));
+
+// checklist
+const items=[
+ ["Android APK — signed release build","app/","Debug builds are rejected. Filename must carry team name + version."],
+ ["Installation instructions","app/README.md","Permissions, how to grant them, any first-run setup."],
+ ["Test credentials","app/README.md","One coach account, one athlete account, pre-created."],
+ ["iOS build (TestFlight or IPA)","app/","Listed as required in the final checklist — plan for it."],
+ ["Complete source code with .git history","source/","Commit history is reviewed. Do not ship a snapshot."],
+ ["BUILD.md","source/","Evaluator must reproduce the APK from source."],
+ ["DEPENDENCIES.md","source/","Every library, version and licence type."],
+ ["AI model files or download script","models/","Download script if any file exceeds 100 MB."],
+ ["Backend source + Dockerfile","backend/","Includes schema and migration scripts."],
+ ["High-Level Design","docs/HLD.pdf","8–15 pages. Context, components, AI pipeline, data flow, sync, integration, security, scale."],
+ ["Low-Level Design","docs/LLD.pdf","10–20 pages. Schema, API, model integration, capture pipeline, sync queue, state machines, edge cases."],
+ ["Model cards — one per model","docs/Model_Cards.pdf","Including measured inference time on a named device."],
+ ["Accuracy validation report","docs/Validation_Report.pdf","Methodology, device matrix, conditions, per-test error, 3+ failure cases, honest assessment."],
+ ["User guide","docs/User_Guide.pdf","2–3 page quick start plus per-test camera placement, Hindi and English."],
+ ["Known issues and limitations log","docs/Known_Issues.md","ID, category, description, impact, workaround, resolution plan."],
+ ["API specification","docs/API_Spec.yaml","OpenAPI preferred."],
+ ["Database schema","docs/DB_Schema.sql","SQL dump or ER diagram."],
+ ["Demo video, 8–12 min, narrated","demo/","1080p MP4, ≤500 MB, real device, offline segment included."],
+ ["Presentation deck, 12–20 slides","presentation/","Self-contained, no external links."],
+ ["Signed data protection declaration","compliance/","All members sign. Missing = disqualification."],
+ ["Anonymised consent forms","compliance/","Or an explicit statement that no footage was collected."],
+ ["Data inventory","compliance/","Subjects, age range, minors, storage location, deletion date."]
+];
+const wrap=document.getElementById('checklist');
+wrap.innerHTML=items.map((it,i)=>`<label class="check"><input type="checkbox" data-i="${i}"><span><b>${it[0]}</b> <span class="mono" style="color:var(--track)">${it[1]}</span><small>${it[2]}</small></span></label>`).join('');
+const boxes=[...wrap.querySelectorAll('input')];
+function upd(){
+  const n=boxes.filter(b=>b.checked).length;
+  document.getElementById('pcount').textContent=n+" / "+boxes.length+" artifacts ready";
+  document.getElementById('pbar').style.width=(n/boxes.length*100)+"%";
+}
+boxes.forEach(b=>b.addEventListener('change',upd));
+upd();
+</script>
+</body>
+</html>
