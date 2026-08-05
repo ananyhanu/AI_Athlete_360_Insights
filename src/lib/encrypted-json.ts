@@ -8,6 +8,8 @@ export type EncryptedJson = {
   version: 1;
 };
 
+// The key is deliberately non-extractable: IndexedDB can retain the CryptoKey for this device,
+// but application code cannot export its raw key material.
 export async function createStorageKey() {
   return crypto.subtle.generateKey({ length: 256, name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
@@ -17,6 +19,7 @@ export async function encryptJson(value: unknown, key: CryptoKey): Promise<Encry
 }
 
 export async function encryptBytes(value: ArrayBuffer, key: CryptoKey): Promise<EncryptedJson> {
+  // AES-GCM requires a unique IV for every encryption with the same key; 96 bits is the Web Crypto recommendation.
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt({ iv, name: "AES-GCM" }, key, value);
 

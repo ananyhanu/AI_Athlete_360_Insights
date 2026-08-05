@@ -20,6 +20,7 @@ export type Athlete = {
   bmi: number;
   mobile: string;
   email: string;
+  profilePhotoDataUrl?: string | null;
   bloodGroup: string;
   medical: string;
   injuries: string;
@@ -273,6 +274,7 @@ function toDisplayAthlete(record: AthleteRecord): Athlete {
     medical: "Not recorded",
     mobile: record.mobileNumber,
     name: record.fullName,
+    profilePhotoDataUrl: record.profilePhotoDataUrl ?? null,
     sport: record.sport,
     state: record.address.state,
     weightKg: record.weightKg ?? 0,

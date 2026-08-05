@@ -97,8 +97,12 @@ function SelectAthlete() {
               }`}
             >
               <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-                <span className="bg-gradient-primary grid size-12 shrink-0 place-items-center rounded-2xl font-display text-sm font-bold text-primary-foreground">
-                  {initials(a.name)}
+                <span className="bg-gradient-primary grid size-12 shrink-0 place-items-center overflow-hidden rounded-2xl font-display text-sm font-bold text-primary-foreground">
+                  {a.profilePhotoDataUrl ? (
+                    <img src={a.profilePhotoDataUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    initials(a.name)
+                  )}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{a.name}</span>

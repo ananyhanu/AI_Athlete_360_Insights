@@ -1,3 +1,5 @@
+"""Pydantic request and response contracts shared by the HTTP API and services."""
+
 from datetime import datetime
 from typing import List, Literal, Optional
 from uuid import UUID
@@ -7,12 +9,37 @@ from pydantic.alias_generators import to_camel
 
 
 class ApiModel(BaseModel):
+    """Base API model that accepts Python names and emits frontend camelCase aliases."""
+
+    # Reject unexpected input so new client fields cannot silently bypass API validation.
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
 
 
 class TokenRequest(ApiModel):
+    """Password sign-in credentials with a minimum accepted password length."""
+
     email: EmailStr
     password: str = Field(min_length=12, max_length=256)
+
+
+class CoachSignupRequest(TokenRequest):
+    """Password sign-up payload extended with an international mobile number."""
+
+    mobile_number: str = Field(min_length=8, max_length=20)
+
+
+class MobileOtpRequest(ApiModel):
+    """Request to send a one-time code to the registered mobile number."""
+
+    email: EmailStr
+    mobile_number: str = Field(min_length=8, max_length=20)
+
+
+class MobileOtpVerification(ApiModel):
+    """Six-digit one-time code submitted to complete mobile verification."""
+
+    email: EmailStr
+    otp: str = Field(pattern=r"^\d{6}$")
 
 
 AppRole = Literal[
@@ -28,18 +55,24 @@ AppRole = Literal[
 
 
 class AuthenticatedUser(ApiModel):
+    """Non-sensitive identity details returned with a successful session."""
+
     email: EmailStr
     id: str
     roles: List[AppRole]
 
 
 class TokenResponse(ApiModel):
+    """Bearer token and authenticated identity returned after verification or sign-in."""
+
     access_token: str
     token_type: Literal["bearer"] = "bearer"
     user: AuthenticatedUser
 
 
 class Contact(ApiModel):
+    """Emergency-contact or guardian details associated with an athlete profile."""
+
     email_address: Optional[EmailStr] = None
     full_name: str = Field(min_length=1, max_length=120)
     mobile_number: str = Field(min_length=7, max_length=20)
@@ -47,6 +80,8 @@ class Contact(ApiModel):
 
 
 class AthleteAddress(ApiModel):
+    """Structured postal address kept inside the encrypted athlete payload."""
+
     district: str = Field(min_length=1, max_length=80)
     line1: str = Field(min_length=1, max_length=160)
     line2: Optional[str] = Field(default=None, max_length=160)
@@ -56,6 +91,8 @@ class AthleteAddress(ApiModel):
 
 
 class AthleteDraft(ApiModel):
+    """Validated athlete-registration fields before the server adds identity metadata."""
+
     address: AthleteAddress
     age_category: str = Field(min_length=1, max_length=80)
     consent_status: Literal["pending", "granted", "withdrawn"]
@@ -74,6 +111,8 @@ class AthleteDraft(ApiModel):
 
 
 class AthleteChanges(ApiModel):
+    """Partial athlete profile changes; unset fields are excluded during a merge."""
+
     address: Optional[AthleteAddress] = None
     age_category: Optional[str] = Field(default=None, min_length=1, max_length=80)
     consent_status: Optional[Literal["pending", "granted", "withdrawn"]] = None
@@ -92,6 +131,8 @@ class AthleteChanges(ApiModel):
 
 
 class Athlete(AthleteDraft):
+    """Persisted athlete response with server-generated identity, version, and timestamps."""
+
     athlete_id: str = Field(pattern=r"^ATH-\d{4}-[A-Z0-9-]{4,64}$")
     created_at: datetime
     id: UUID
@@ -101,11 +142,15 @@ class Athlete(AthleteDraft):
 
 
 class AthleteUpdate(ApiModel):
+    """Versioned athlete update containing only the requested field changes."""
+
     changes: AthleteChanges
     version: int = Field(ge=1)
 
 
 class PoseEvidence(ApiModel):
+    """Pose-analysis quality evidence retained for a provisional assessment attempt."""
+
     analyzed_frames: int = Field(ge=1, le=60)
     body_in_frame_rate: float = Field(ge=0, le=1)
     detected_frames: int = Field(ge=0, le=60)
@@ -115,12 +160,16 @@ class PoseEvidence(ApiModel):
 
 
 class Measurement(ApiModel):
+    """A numeric measurement and the label and unit required to interpret it."""
+
     label: str = Field(min_length=1, max_length=120)
     unit: str = Field(min_length=1, max_length=20)
     value: float = Field(ge=0, le=10_000)
 
 
 class AssessmentEvaluation(ApiModel):
+    """Provisional AI or coach evaluation, with validation reasons visible to reviewers."""
+
     level: Optional[Literal["Excellent", "Good", "Average", "Needs Improvement", "Not scored"]]
     measurement: Optional[Measurement]
     pose_evidence: Optional[PoseEvidence] = None
@@ -131,6 +180,8 @@ class AssessmentEvaluation(ApiModel):
 
     @model_validator(mode="after")
     def validate_coach_performance_score(self):
+        """Require scored levels to use their configured whole-number score band."""
+        # Keep rating bands consistent with the frontend before any encrypted payload is stored.
         score_bands = {
             "Excellent": (85, 100),
             "Good": (70, 84),
@@ -152,6 +203,8 @@ class AssessmentEvaluation(ApiModel):
 
 
 class AssessmentAttempt(ApiModel):
+    """Versioned assessment record synchronized between encrypted local and remote storage."""
+
     athlete_id: str = Field(min_length=1, max_length=160)
     capture_id: Optional[UUID]
     created_at: datetime

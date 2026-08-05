@@ -16,6 +16,7 @@ The application is deliberately designed to distinguish an observed AI estimate 
 - [Backend API setup](#backend-api-setup)
 - [API reference](#api-reference)
 - [Testing and build](#testing-and-build)
+- [Demo-video evidence](#demo-video-evidence)
 - [PWA and native status](#pwa-and-native-status)
 - [Production readiness boundaries](#production-readiness-boundaries)
 - [Repository map](#repository-map)
@@ -40,22 +41,22 @@ All records are provisional. The measurement ranges below are plausibility and w
 
 | Test | Method | Output | Configured allowed range | Current result source |
 | --- | --- | --- | --- | --- |
-| Height | Manual | cm | 80-250 cm | Coach entry from a calibrated device |
-| Weight | Manual | kg | 15-300 kg | Coach entry from a calibrated scale |
-| Sit & Reach | Video | cm | 0-100 cm | Wrist-travel pose estimate |
-| Standing Vertical Jump | Video | cm | 5-150 cm | Vertical pose-displacement estimate |
-| Standing Broad Jump | Video | m | 0.5-5 m | Horizontal pose-displacement estimate |
-| Medicine Ball Throw | Video | m | 0.5-30 m | Wrist-trajectory pose estimate |
-| 30m Sprint | Video | s | 3-20 s | Observed video movement duration |
-| 4x10m Shuttle Run | Video | s | 5-60 s | Observed video movement duration |
-| Sit-Ups | Video | reps | 0-150 reps | Torso-cycle estimate extrapolated to 60 seconds |
-| Endurance Run | Video | m | 100-20,000 m | Pose-travel proxy estimate |
+| Height | Manual | cm | 80-230 cm | Coach entry from a calibrated device |
+| Weight | Manual | kg | 15-200 kg | Coach entry from a calibrated scale |
+| Sit & Reach | Video | cm | 0-50 cm | Provisional wrist-travel pose estimate |
+| Standing Vertical Jump | Video | cm | 5-120 cm | Provisional vertical-displacement pose estimate |
+| Standing Broad Jump | Video | m | 0.5-4.0 m | Provisional horizontal-displacement pose estimate |
+| Medicine Ball Throw | Video | m | 1.0-25.0 m | Provisional wrist-trajectory pose estimate |
+| 30m Sprint | Video + coach timing | s | 3.5-15.0 s | Coach-confirmed time; AI waits for verified line/timing evidence |
+| 4x10m Shuttle Run | Video + coach timing | s | 7.5-35.0 s | Coach-confirmed time; AI waits for verified turn-line/timing evidence |
+| Sit-Ups | Video + coach count | reps | 0-60 reps | 30s under 12; 45s age 12+; coach confirmation required |
+| Endurance Run | Video + coach timing | min | 1.5-15.0 min | 800m under 12; 1.6km age 12+; coach confirmation required |
 
 ### Capture guidance
 
 For video workflows, place the device on a stable surface approximately three metres from the athlete. Use adequate light, a plain background, and keep one athlete fully visible throughout the movement. Built-in recordings use browser-supported WebM and flush media chunks before saving to improve decode reliability.
 
-Three sample videos are included under [sample_video](sample_video) for the 30m Sprint, Medicine Ball Throw, and Standing Vertical Jump workflows.
+Seven sample videos are included under [sample_video](sample_video), including Sit & Reach, Vertical Jump, Broad Jump, Medicine Ball Throw, Sprint, Shuttle, and Sit-Ups. Use the four pose-estimated tests for the automated demo: Sit & Reach, Vertical Jump, Broad Jump, and Medicine Ball Throw.
 
 ## Assessment workflow
 
@@ -65,10 +66,11 @@ Three sample videos are included under [sample_video](sample_video) for the 30m 
 4. For movement tests, the coach uploads a video or records one in the browser.
 5. The application encrypts and saves the capture locally, then samples frames with MediaPipe Pose.
 6. Pose quality is checked using detected frames, landmark visibility, and body-in-frame rate.
-7. A usable timeline is converted into a provisional test-specific metric and range-normalized score.
-8. The result remains in `awaiting coach review`; the coach may confirm or replace the metric and assign the final provisional rating and score.
-9. The coach accepts the validated attempt or requests a retest.
-10. Dashboards, history, summary, synchronization, and PDF reports use the persisted attempt state.
+7. For Sit & Reach, Vertical Jump, Broad Jump, and Medicine Ball Throw, a usable timeline is converted into a provisional test-specific metric and range-normalized score.
+8. Timed-course and age-dependent protocols retain the pose-quality evidence but require the coach to enter the approved time or count.
+9. The result remains in `awaiting coach review`; the coach may confirm or replace the metric and assign the final provisional rating and score.
+10. The coach accepts the validated attempt or requests a retest.
+11. Dashboards, history, summary, synchronization, and PDF reports use the persisted attempt state.
 
 ### Capture outcomes
 
@@ -95,9 +97,13 @@ MediaPipe Pose Landmarker Lite runs in the client using local model and WASM ass
 - Wrist travel
 - Optional torso movement cycles
 
-The estimator maps that evidence to a test-specific provisional value. Timing tests use the observed movement timeline. Other movement tests use body-height-normalized pose signals, with the athlete height used as an optional reference where appropriate. Sit-Ups uses torso cycles extrapolated to 60 seconds.
+The estimator maps evidence to a test-specific provisional value only for Sit & Reach, Standing Vertical Jump, Standing Broad Jump, and Medicine Ball Throw. These movement tests use body-height-normalized pose signals, with athlete height used as an optional reference where appropriate. Timed-course, age-dependent, and anthropometric tests require coach-confirmed protocol measurements because ordinary pose video cannot verify course markings, official timing, or the required test duration.
 
-Each estimate is rounded to the test entry step, compared with the configured minimum and maximum, and assigned a provisional score from `15` to `100` when in range. Sprint and shuttle timing use lower-is-better normalization. A result outside the allowed range remains visible but receives score `0` and requires coach intervention.
+Each supported estimate is rounded to the test entry step, compared with the configured minimum and maximum, and assigned a provisional score from `15` to `100` when in range. A result outside the allowed range remains visible but receives score `0` and requires coach intervention.
+
+## Demo video evidence
+
+The product supports the offline assessment and synchronization workflow required for a demonstration: the service worker caches the application shell and local MediaPipe assets after the first connected load; athlete profiles, captures, assessments, and audit events remain AES-GCM encrypted in IndexedDB; and synchronization is retried automatically when the device returns online. The full recording plan, required spoken/caption text, sample files, and export checklist are in [docs/demo-video-script.md](docs/demo-video-script.md).
 
 ### Height and Weight
 
@@ -162,7 +168,9 @@ Payloads are encrypted with AES-256-GCM through the Web Crypto API before they a
 
 ### Authentication and authorization
 
-Without `VITE_ASSESSMENT_API_URL`, login is an intentionally local prototype coach session for offline UI development. With an API origin configured, the client signs in against the backend and retains the short-lived bearer token only in `sessionStorage`. A `401` clears the session and returns the user to the login screen.
+Without `VITE_ASSESSMENT_API_URL`, login is an intentionally local prototype coach session for offline UI development. With an API origin configured, coaches can use verified email/password registration, a verification link, mobile OTP, Google OAuth, or an approved government SSO provider. The client retains the short-lived bearer token only in `sessionStorage`. A `401` clears the session and returns the user to the login screen.
+
+Email links and SMS OTP are disabled until their delivery provider is configured. Google and government SSO buttons lead to a clear configuration error until their client credentials and approved callback URLs are set; they are not local fallbacks.
 
 Client-side role checks improve the user experience but are not a security boundary. The backend independently enforces authenticated permissions and owner-scoped athlete/assessment access.
 
@@ -250,6 +258,18 @@ Configure `backend/.env` from [backend/.env.example](backend/.env.example). The 
 | `AA360_DATA_ENCRYPTION_KEY` | Fernet payload-encryption key from a KMS or secret manager. |
 | `AA360_CORS_ORIGINS` | Comma-separated allowed application origins. |
 | `AA360_TRUSTED_HOSTS` | Comma-separated accepted API hosts. |
+| `AA360_API_PUBLIC_URL` | Public API origin used to generate verification and SSO callback URLs. |
+| `AA360_APP_PUBLIC_URL` | Public frontend origin that receives the completed SSO session. |
+| `AA360_EMAIL_DELIVERY_MODE` | `console` for local development or `smtp` for real email links. |
+| `AA360_MOBILE_OTP_DELIVERY_MODE` | `console` for local development or `twilio` for real SMS OTP delivery. |
+| `AA360_GOOGLE_CLIENT_ID` / `AA360_GOOGLE_CLIENT_SECRET` | Google OAuth web-client credentials. |
+| `AA360_GOVERNMENT_SSO_*` | Approved government identity-provider authorization, token, userinfo, client, and scope settings. |
+
+### Verified coach identity configuration
+
+For local testing, set `AA360_EMAIL_DELIVERY_MODE=console` and `AA360_MOBILE_OTP_DELIVERY_MODE=console`. The server prints one-time email links and OTPs only to its console; do not use console delivery in production.
+
+For Google, register `${AA360_API_PUBLIC_URL}/v1/auth/google/callback` as an authorized redirect URI in the Google Cloud OAuth client. For government SSO, obtain the approved authorization, token, and userinfo URLs from the government identity team and register `${AA360_API_PUBLIC_URL}/v1/auth/government/callback`. The provider must return a verified email claim (`email_verified: true`) from its userinfo endpoint. Keep all client secrets in the deployment secret manager, never in the frontend or repository.
 
 The Docker image applies Alembic migrations before starting Uvicorn. For an API health check, call `GET /healthz`; a healthy response is `{ "status": "ok" }`.
 
@@ -261,6 +281,13 @@ All protected endpoints require a bearer token and enforce permissions on the se
 | --- | --- | --- |
 | `GET` | `/healthz` | Service health check. |
 | `POST` | `/v1/auth/token` | Password sign-in and token issuance. |
+| `POST` | `/v1/auth/signup` | Create an unverified coach account and send an email verification link. |
+| `GET` | `/v1/auth/verify-email` | Consume a one-time email verification token. |
+| `POST` | `/v1/auth/mobile-otp` | Send a mobile OTP for a matching pending account. |
+| `POST` | `/v1/auth/mobile-otp/verify` | Verify a mobile OTP and issue a coach session. |
+| `GET` | `/v1/auth/google/start` | Begin configured Google OAuth sign-in. |
+| `GET` | `/v1/auth/government/start` | Begin configured government SSO sign-in. |
+| `GET` | `/v1/auth/me` | Return the authenticated coach identity. |
 | `POST` | `/v1/athletes` | Create an owner-scoped athlete record. |
 | `GET` | `/v1/athletes` | List athletes owned by or assigned to the authenticated coach. |
 | `GET` | `/v1/athletes/{athlete_id}` | Read one authorized athlete record. |

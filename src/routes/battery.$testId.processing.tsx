@@ -112,7 +112,7 @@ function AiProcessing() {
   const remaining = ((steps.length - step - 1) * STEP_MS) / 1000;
 
   return (
-    <div className="bg-gradient-primary flex min-h-screen flex-col items-center justify-center px-8 py-12 text-center text-primary-foreground">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-foreground px-8 py-12 text-center text-primary-foreground">
       <div className="relative grid size-28 place-items-center">
         <span className="absolute inset-0 animate-ping rounded-full bg-primary-foreground/20" />
         <span className="absolute inset-3 animate-spin rounded-full border-4 border-primary-foreground/25 border-t-primary-foreground" />

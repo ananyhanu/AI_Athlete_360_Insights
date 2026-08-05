@@ -19,6 +19,7 @@ export class AssessmentSyncService {
     let synced = 0;
 
     for (const attempt of attempts) {
+      // Sync sequentially so each attempt's audit trail and version transition remain deterministic.
       await this.localRepository.recordAuditEvent({
         action: "assessment-sync-attempted",
         actor: "system",
@@ -46,6 +47,7 @@ export class AssessmentSyncService {
 }
 
 export function assessmentIdempotencyKey(attempt: AssessmentAttempt) {
+  // A retry of the same local version is safe; a changed version is intentionally a new remote write.
   return `${attempt.id}:v${attempt.version}`;
 }
 

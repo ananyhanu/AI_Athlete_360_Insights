@@ -201,7 +201,8 @@ function RecordScreen() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-foreground text-background">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-foreground text-background">
+      <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-primary/15 blur-3xl" />
       <header className="flex items-center gap-3 px-5 pt-6">
         <button
           onClick={() => navigate({ to: "/battery/$testId", params: { testId: test.id } })}
@@ -226,7 +227,7 @@ function RecordScreen() {
         </span>
       </header>
 
-      <div className="relative mx-5 mt-5 flex-1 overflow-hidden rounded-3xl border border-background/20 bg-background/5">
+      <div className="relative mx-5 mt-5 flex-1 overflow-hidden rounded-3xl border border-primary/35 bg-background/5 shadow-elevated">
         {cameraReady ? (
           <video
             ref={attachPreview}
@@ -258,10 +259,11 @@ function RecordScreen() {
             </div>
           </div>
         )}
-        <div className="pointer-events-none absolute inset-6 rounded-2xl border-2 border-dashed border-background/25" />
+        <div className="pointer-events-none absolute inset-6 rounded-2xl border-2 border-dashed border-primary/55" />
+        <div className="pointer-events-none absolute inset-x-8 top-1/2 h-px bg-primary/70 shadow-[0_0_18px_var(--primary)] animate-pulse" />
       </div>
 
-      <section className="mx-5 mt-4 rounded-2xl bg-background/10 p-4">
+      <section className="mx-5 mt-4 rounded-2xl border border-background/10 bg-background/10 p-4 backdrop-blur-sm">
         <p className="text-xs font-semibold uppercase tracking-widest text-background/75">
           Calibration Check
         </p>

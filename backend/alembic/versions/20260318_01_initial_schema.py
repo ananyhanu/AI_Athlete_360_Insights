@@ -11,6 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create encrypted assessment, idempotency, audit, and user tables for the first release."""
     op.create_table(
         "users",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -61,6 +62,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the initial schema in dependency-safe reverse order."""
     op.drop_table("idempotency_records")
     op.drop_table("audit_events")
     op.drop_index("ix_assessment_attempts_athlete_id", table_name="assessment_attempts")

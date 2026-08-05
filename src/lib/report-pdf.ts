@@ -4,35 +4,39 @@ import type { AssessmentSummary } from "./assessment-summary";
 
 export type ReportPdf = { url: string; fileName: string; sizeKb: number };
 
-const BLUE: [number, number, number] = [21, 78, 168];
-const LIGHT: [number, number, number] = [235, 242, 252];
-const GREY: [number, number, number] = [110, 120, 135];
+const INK: [number, number, number] = [24, 24, 24];
+const ORANGE: [number, number, number] = [230, 98, 18];
+const LIGHT: [number, number, number] = [248, 245, 241];
+const GREY: [number, number, number] = [105, 105, 102];
 
 /** Generates a clearly labelled prototype report in the browser. */
 export async function generateReportPdf(
   athlete: Athlete,
   summary?: AssessmentSummary,
 ): Promise<ReportPdf> {
+  // Keep jsPDF out of the initial application bundle; it is needed only after the coach requests a report.
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const M = 40;
+  const logo = await loadReportLogo();
 
-  doc.setFillColor(...BLUE);
+  doc.setFillColor(...INK);
   doc.rect(0, 0, W, 76, "F");
-  doc.setFillColor(255, 255, 255);
-  doc.circle(M + 17, 38, 17, "F");
-  doc.setTextColor(...BLUE);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text("360", M + 17, 42, { align: "center" });
+  if (logo) {
+    doc.addImage(logo, "PNG", M, 12, 36, 52, undefined, "FAST");
+  } else {
+    doc.setFillColor(...ORANGE);
+    doc.roundedRect(M, 21, 34, 34, 5, 5, "F");
+  }
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(17);
-  doc.text("AI ATHLETE 360", M + 45, 34);
+  doc.setFont("helvetica", "bold");
+  doc.text("AI ATHLETE 360", M + 48, 34);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.text("Battery Fitness Assessment - Provisional", M + 45, 48);
-  doc.text("Coach-reviewed data required - not an official assessment", M + 45, 60);
+  doc.text("Athlete Performance Assessment - Provisional", M + 48, 48);
+  doc.text("Coach-reviewed data required - not an official assessment", M + 48, 60);
 
   let y = 96;
   doc.setTextColor(30, 35, 45);
@@ -101,8 +105,10 @@ export async function generateReportPdf(
   const overall = summary?.averageScore?.toFixed(1) ?? provisionalAverageScore()?.toFixed(1) ?? "N/A";
 
   y += 5;
-  doc.setFillColor(...BLUE);
+  doc.setFillColor(...INK);
   doc.roundedRect(M, y, W - M * 2, 38, 5, 5, "F");
+  doc.setFillColor(...ORANGE);
+  doc.roundedRect(M, y, 5, 38, 5, 5, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
@@ -187,12 +193,12 @@ async function importDoc() {
 function section(doc: Doc, title: string, y: number, M: number, W: number) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10.5);
-  doc.setTextColor(21, 78, 168);
+  doc.setTextColor(...ORANGE);
   doc.text(title.toUpperCase(), M, y);
   doc.setDrawColor(210, 220, 235);
   doc.setLineWidth(0.7);
   doc.line(M, y + 5, W - M, y + 5);
-  doc.setTextColor(30, 35, 45);
+  doc.setTextColor(...INK);
   return y + 22;
 }
 
@@ -203,11 +209,29 @@ function compactRows(doc: Doc, data: string[][], y: number, M: number, W: number
     doc.setTextColor(110, 120, 135);
     doc.text(String(k), M + 4, y);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(30, 35, 45);
+    doc.setTextColor(...INK);
     doc.text(String(v), W - M - 4, y, { align: "right" });
     y += 11;
   }
   return y;
+}
+
+async function loadReportLogo() {
+  try {
+    // Convert the local asset to a data URL because jsPDF embeds image data rather than a browser URL.
+    const response = await fetch("/images/ai-athlete-logo.png");
+    if (!response.ok) return null;
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn("Unable to include the brand logo in the PDF report.", error);
+    return null;
+  }
 }
 
 function bullets(doc: Doc, items: string[], y: number, M: number, W: number) {

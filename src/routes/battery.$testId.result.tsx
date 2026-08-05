@@ -349,8 +349,8 @@ function AssessmentResult() {
         <section className="mt-3 rounded-2xl bg-card p-5 shadow-card">
           <h2 className="text-sm font-semibold">Capture Validation</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            {evaluation.validationReasons.map((reason) => (
-              <li key={reason} className="flex gap-2">
+            {evaluation.validationReasons.map((reason, index) => (
+              <li key={`${index}-${reason}`} className="flex gap-2">
                 <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>{reason}</span>
               </li>

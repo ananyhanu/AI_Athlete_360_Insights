@@ -22,7 +22,7 @@ describe("battery test coach metrics", () => {
       "30m-sprint": "s",
       "4x10-shuttle-run": "s",
       "broad-jump": "m",
-      "endurance-run": "m",
+      "endurance-run": "min",
       height: "cm",
       "medicine-ball-throw": "m",
       "sit-and-reach": "cm",
@@ -32,14 +32,37 @@ describe("battery test coach metrics", () => {
     });
   });
 
+  it("uses SAI-aligned allowed entry ranges for all ten measurements", () => {
+    expect(
+      Object.fromEntries(
+        batteryTests.map((test) => [test.id, [test.manualEntry!.min, test.manualEntry!.max]]),
+      ),
+    ).toEqual({
+      "30m-sprint": [3.5, 15],
+      "4x10-shuttle-run": [7.5, 35],
+      "broad-jump": [0.5, 4],
+      "endurance-run": [1.5, 15],
+      height: [80, 230],
+      "medicine-ball-throw": [1, 25],
+      "sit-and-reach": [0, 50],
+      "sit-ups": [0, 60],
+      "vertical-jump": [5, 120],
+      weight: [15, 200],
+    });
+  });
+
   it("defines current and future AI measurement coverage for all ten tests", () => {
     expect(Object.keys(aiMeasurementCapabilities).sort()).toEqual(
       batteryTests.map((test) => test.id).sort(),
     );
     expect(
       batteryTests.filter((test) => aiMeasurementCapabilities[test.id]?.current === "pose-estimate"),
-    ).toHaveLength(8);
+    ).toHaveLength(4);
     expect(aiMeasurementCapabilities["height"]).toMatchObject({ current: "manual-only" });
     expect(aiMeasurementCapabilities["weight"]).toMatchObject({ current: "manual-only" });
+    expect(aiMeasurementCapabilities["30m-sprint"]).toMatchObject({ current: "manual-only" });
+    expect(aiMeasurementCapabilities["4x10-shuttle-run"]).toMatchObject({ current: "manual-only" });
+    expect(aiMeasurementCapabilities["sit-ups"]).toMatchObject({ current: "manual-only" });
+    expect(aiMeasurementCapabilities["endurance-run"]).toMatchObject({ current: "manual-only" });
   });
 });

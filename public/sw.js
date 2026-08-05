@@ -1,5 +1,6 @@
-const CACHE_NAME = "ai-athlete-360-public-v2";
+const CACHE_NAME = "ai-athlete-360-public-v4";
 const PUBLIC_SHELL_ASSETS = [
+  "/",
   "/offline.html",
   "/manifest.webmanifest",
   "/favicon.ico",
@@ -52,14 +53,28 @@ self.addEventListener("fetch", (event) => {
 });
 
 function isPublicStaticAsset(pathname) {
-  return pathname.startsWith("/assets/") || PUBLIC_SHELL_ASSETS.includes(pathname);
+  // Cache runtime bundles, branding, and the local model/WASM files required for offline pose analysis.
+  return (
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith("/images/") ||
+    pathname.startsWith("/mediapipe/") ||
+    pathname.startsWith("/models/") ||
+    PUBLIC_SHELL_ASSETS.includes(pathname)
+  );
 }
 
 async function navigationWithOfflineFallback(request) {
   try {
-    return await fetch(request);
+    const response = await fetch(request);
+    if (response.ok && response.type === "basic") {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    }
+    return response;
   } catch {
     return (
+      (await caches.match(request)) ??
+      (await caches.match("/")) ??
       (await caches.match("/offline.html")) ??
       new Response("Offline. Reconnect once to load this screen.", {
         headers: { "Content-Type": "text/plain; charset=utf-8" },

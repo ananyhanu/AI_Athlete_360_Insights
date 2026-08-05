@@ -10,9 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AthletePerformanceRouteImport } from './routes/athlete-performance'
 import { Route as CameraRouteImport } from './routes/camera'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as DemoRouteImport } from './routes/demo'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProcessingRouteImport } from './routes/processing'
@@ -22,6 +22,7 @@ import { Route as ResultRouteImport } from './routes/result'
 import { Route as SelectAthleteRouteImport } from './routes/select-athlete'
 import { Route as SelectTestRouteImport } from './routes/select-test'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as AuthCallbackRouteImport } from './routes/auth.callback'
 import { Route as BatteryIndexRouteImport } from './routes/battery.index'
 import { Route as BatteryTestIdRouteImport } from './routes/battery.$testId'
 import { Route as BatteryTestIdIndexRouteImport } from './routes/battery.$testId.index'
@@ -35,6 +36,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AthletePerformanceRoute = AthletePerformanceRouteImport.update({
+  id: '/athlete-performance',
+  path: '/athlete-performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CameraRoute = CameraRouteImport.update({
   id: '/camera',
   path: '/camera',
@@ -43,11 +49,6 @@ const CameraRoute = CameraRouteImport.update({
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoRoute = DemoRouteImport.update({
-  id: '/demo',
-  path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HistoryRoute = HistoryRouteImport.update({
@@ -95,6 +96,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BatteryIndexRoute = BatteryIndexRouteImport.update({
   id: '/battery/',
   path: '/battery/',
@@ -133,9 +139,9 @@ const BatteryTestIdUploadRoute = BatteryTestIdUploadRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/athlete-performance': typeof AthletePerformanceRoute
   '/camera': typeof CameraRoute
   '/dashboard': typeof DashboardRoute
-  '/demo': typeof DemoRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/processing': typeof ProcessingRoute
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/select-athlete': typeof SelectAthleteRoute
   '/select-test': typeof SelectTestRoute
   '/settings': typeof SettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/battery/$testId': typeof BatteryTestIdRouteWithChildren
   '/battery/': typeof BatteryIndexRoute
   '/battery/$testId/processing': typeof BatteryTestIdProcessingRoute
@@ -155,9 +162,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/athlete-performance': typeof AthletePerformanceRoute
   '/camera': typeof CameraRoute
   '/dashboard': typeof DashboardRoute
-  '/demo': typeof DemoRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/processing': typeof ProcessingRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/select-athlete': typeof SelectAthleteRoute
   '/select-test': typeof SelectTestRoute
   '/settings': typeof SettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/battery': typeof BatteryIndexRoute
   '/battery/$testId/processing': typeof BatteryTestIdProcessingRoute
   '/battery/$testId/record': typeof BatteryTestIdRecordRoute
@@ -177,9 +185,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/athlete-performance': typeof AthletePerformanceRoute
   '/camera': typeof CameraRoute
   '/dashboard': typeof DashboardRoute
-  '/demo': typeof DemoRoute
   '/history': typeof HistoryRoute
   '/login': typeof LoginRoute
   '/processing': typeof ProcessingRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/select-athlete': typeof SelectAthleteRoute
   '/select-test': typeof SelectTestRoute
   '/settings': typeof SettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/battery/$testId': typeof BatteryTestIdRouteWithChildren
   '/battery/': typeof BatteryIndexRoute
   '/battery/$testId/processing': typeof BatteryTestIdProcessingRoute
@@ -201,9 +210,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/athlete-performance'
     | '/camera'
     | '/dashboard'
-    | '/demo'
     | '/history'
     | '/login'
     | '/processing'
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | '/select-athlete'
     | '/select-test'
     | '/settings'
+    | '/auth/callback'
     | '/battery/$testId'
     | '/battery/'
     | '/battery/$testId/processing'
@@ -223,9 +233,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/athlete-performance'
     | '/camera'
     | '/dashboard'
-    | '/demo'
     | '/history'
     | '/login'
     | '/processing'
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | '/select-athlete'
     | '/select-test'
     | '/settings'
+    | '/auth/callback'
     | '/battery'
     | '/battery/$testId/processing'
     | '/battery/$testId/record'
@@ -244,9 +255,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/athlete-performance'
     | '/camera'
     | '/dashboard'
-    | '/demo'
     | '/history'
     | '/login'
     | '/processing'
@@ -256,6 +267,7 @@ export interface FileRouteTypes {
     | '/select-athlete'
     | '/select-test'
     | '/settings'
+    | '/auth/callback'
     | '/battery/$testId'
     | '/battery/'
     | '/battery/$testId/processing'
@@ -267,9 +279,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AthletePerformanceRoute: typeof AthletePerformanceRoute
   CameraRoute: typeof CameraRoute
   DashboardRoute: typeof DashboardRoute
-  DemoRoute: typeof DemoRoute
   HistoryRoute: typeof HistoryRoute
   LoginRoute: typeof LoginRoute
   ProcessingRoute: typeof ProcessingRoute
@@ -279,6 +291,7 @@ export interface RootRouteChildren {
   SelectAthleteRoute: typeof SelectAthleteRoute
   SelectTestRoute: typeof SelectTestRoute
   SettingsRoute: typeof SettingsRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   BatteryTestIdRoute: typeof BatteryTestIdRouteWithChildren
   BatteryIndexRoute: typeof BatteryIndexRoute
 }
@@ -290,6 +303,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/athlete-performance': {
+      id: '/athlete-performance'
+      path: '/athlete-performance'
+      fullPath: '/athlete-performance'
+      preLoaderRoute: typeof AthletePerformanceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/camera': {
@@ -304,13 +324,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo': {
-      id: '/demo'
-      path: '/demo'
-      fullPath: '/demo'
-      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/history': {
@@ -374,6 +387,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/battery/': {
@@ -450,9 +470,9 @@ const BatteryTestIdRouteWithChildren = BatteryTestIdRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AthletePerformanceRoute: AthletePerformanceRoute,
   CameraRoute: CameraRoute,
   DashboardRoute: DashboardRoute,
-  DemoRoute: DemoRoute,
   HistoryRoute: HistoryRoute,
   LoginRoute: LoginRoute,
   ProcessingRoute: ProcessingRoute,
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   SelectAthleteRoute: SelectAthleteRoute,
   SelectTestRoute: SelectTestRoute,
   SettingsRoute: SettingsRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   BatteryTestIdRoute: BatteryTestIdRouteWithChildren,
   BatteryIndexRoute: BatteryIndexRoute,
 }

@@ -17,7 +17,7 @@ describe("AI measurement estimates", () => {
     }
   });
 
-  it("turns a tracked 30m sprint movement duration into an in-range provisional result", () => {
+  it("requires a coach-timed 30m sprint result until start and finish lines are verified", () => {
     const outcome = estimateAiMeasurement(getBatteryTest("30m-sprint"), {
       horizontalDisplacementBodyHeights: 7.8,
       horizontalTravelBodyHeights: 8.2,
@@ -28,17 +28,12 @@ describe("AI measurement estimates", () => {
     });
 
     expect(outcome).toMatchObject({
-      estimate: {
-        level: "Good",
-        measurement: { label: "30m Sprint", unit: "s", value: 7.4 },
-        requiresCoachIntervention: false,
-        score: 78,
-      },
-      status: "estimated",
+      status: "unavailable",
+      reason: expect.stringContaining("verified start and finish lines"),
     });
   });
 
-  it("keeps an out-of-range AI timing visible and routes it to coach intervention", () => {
+  it("does not create a 30m sprint value from an arbitrary video duration", () => {
     const outcome = estimateAiMeasurement(getBatteryTest("30m-sprint"), {
       horizontalDisplacementBodyHeights: 7.8,
       horizontalTravelBodyHeights: 8.2,
@@ -49,17 +44,12 @@ describe("AI measurement estimates", () => {
     });
 
     expect(outcome).toMatchObject({
-      estimate: {
-        level: "Needs Improvement",
-        measurement: { value: 21.1 },
-        requiresCoachIntervention: true,
-        score: 0,
-      },
-      status: "estimated",
+      status: "unavailable",
+      reason: expect.stringContaining("approved timing method"),
     });
   });
 
-  it("creates range-validated provisional estimates for every video test", () => {
+  it("reserves age- and course-dependent protocols for coach-confirmed measurements", () => {
     const motion = {
       horizontalDisplacementBodyHeights: 0.1,
       horizontalTravelBodyHeights: 8.2,
@@ -83,13 +73,17 @@ describe("AI measurement estimates", () => {
     ].map((id) => estimateAiMeasurement(getBatteryTest(id), motion, 170));
 
     expect(outcomes).toHaveLength(8);
-    expect(outcomes.every((outcome) => outcome.status === "estimated")).toBe(true);
-    for (const outcome of outcomes) {
+    const estimates = outcomes.filter((outcome) => outcome.status === "estimated");
+    expect(estimates).toHaveLength(4);
+    for (const outcome of estimates) {
       if (outcome.status !== "estimated") throw new Error("Expected an AI estimate.");
       expect(outcome.estimate.measurement.value).toBeGreaterThanOrEqual(0);
       expect(outcome.estimate.score).toBeTypeOf("number");
       expect(outcome.estimate.level).not.toBe("Not scored");
       expect(outcome.estimate.validationReason).toContain("AI estimated");
+    }
+    for (const outcome of outcomes.slice(4)) {
+      expect(outcome).toMatchObject({ status: "unavailable" });
     }
   });
 });

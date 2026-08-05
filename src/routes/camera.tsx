@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { AppShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/camera")({
+  // Route metadata provides browser and social-preview context without rendering a separate page wrapper.
   head: () => ({
     meta: [
       { title: "Capture Video — AI Athlete 360" },
@@ -19,11 +20,14 @@ export const Route = createFileRoute("/camera")({
 });
 
 function CameraScreen() {
+  // Router navigation moves the temporary flow to its existing processing placeholder.
   const navigate = useNavigate();
+  // The visible upload command delegates file selection to this hidden native input.
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleUpload() {
-    // TODO: POST the selected video file to FastAPI backend
+    // TODO: Persist the selected video through the FastAPI backend before transitioning to processing.
+    // The current route only demonstrates the capture-to-processing UI handoff.
     navigate({ to: "/processing" });
   }
 

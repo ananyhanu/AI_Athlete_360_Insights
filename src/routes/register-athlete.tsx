@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
-import { Camera } from "lucide-react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { useMemo, useRef, useState } from "react";
+import { Camera, ImagePlus, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { setSelectedAthleteId } from "@/lib/athletes";
@@ -11,99 +11,157 @@ export const Route = createFileRoute("/register-athlete")({
   head: () => ({
     meta: [
       { title: "Register Athlete — AI Athlete 360" },
-      {
-        name: "description",
-        content:
-          "Register an athlete with personal, sport, physical, contact and medical details for assessment.",
-      },
-      { property: "og:title", content: "Register Athlete — AI Athlete 360" },
-      { property: "og:description", content: "Add a new athlete to your assessment roster." },
+      { name: "description", content: "Create a secure athlete profile for fitness assessment." },
     ],
   }),
   component: RegisterAthlete,
 });
 
 const fieldClass =
-  "mt-2 h-13 w-full rounded-2xl border border-border bg-secondary px-4 py-3 text-base outline-none focus:border-primary";
+  "mt-1.5 h-12 w-full rounded-lg border border-border bg-secondary px-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-60";
 
-function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+const sportDisciplines: Record<string, readonly string[]> = {
+  Athletics: ["100m Sprint", "200m Sprint", "400m Sprint", "Long Jump", "High Jump", "Shot Put"],
+  Basketball: ["Point Guard", "Shooting Guard", "Small Forward", "Power Forward", "Center"],
+  Football: ["Goalkeeper", "Defender", "Midfielder", "Forward"],
+  Hockey: ["Goalkeeper", "Defender", "Midfielder", "Forward"],
+  Kabaddi: ["Raider", "Defender", "All-rounder"],
+  Wrestling: ["Freestyle", "Greco-Roman", "Women's Freestyle"],
+};
+
+const states = [
+  "Andhra Pradesh",
+  "Assam",
+  "Bihar",
+  "Delhi",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Punjab",
+  "Rajasthan",
+  "Tamil Nadu",
+  "Telangana",
+  "Uttar Pradesh",
+  "West Bengal",
+] as const;
+
+function Field({
+  id,
+  label,
+  children,
+  required = false,
+}: {
+  id: string;
+  label: string;
+  children: ReactNode;
+  required?: boolean;
+}) {
   return (
-    <div className="mt-4">
-      <label className="block text-sm font-semibold" htmlFor={id}>
+    <div>
+      <label className="block text-sm font-semibold text-foreground" htmlFor={id}>
         {label}
+        {required ? <span className="ml-1 text-primary">*</span> : null}
       </label>
       {children}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-3 rounded-3xl bg-card p-5 shadow-card">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-primary">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
 function RegisterAthlete() {
   const navigate = useNavigate();
-  const [dob, setDob] = useState("");
-  const [height, setHeight] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [discipline, setDiscipline] = useState("");
+  const [isPhotoLoading, setIsPhotoLoading] = useState(false);
+  const [profilePhotoDataUrl, setProfilePhotoDataUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [weight, setWeight] = useState("");
+  const [sport, setSport] = useState("");
 
-  const age = useMemo(() => {
-    const d = new Date(dob);
-    if (Number.isNaN(d.getTime())) return "--";
-    const diff = Date.now() - d.getTime();
-    return String(Math.floor(diff / (365.25 * 24 * 3600 * 1000)));
-  }, [dob]);
+  const age = useMemo(() => ageOnDate(dateOfBirth), [dateOfBirth]);
+  const ageCategory = useMemo(() => ageCategoryFor(age), [age]);
+  const isMinor = age !== null && age < 18;
+  const disciplines = sport ? (sportDisciplines[sport] ?? []) : [];
 
-  const bmi = useMemo(() => {
-    const h = Number(height) / 100;
-    const w = Number(weight);
-    if (!h || !w) return "--";
-    return (w / (h * h)).toFixed(1);
-  }, [height, weight]);
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const guardian = optionalContact(form, "guardian");
+    if (!new Set(["image/jpeg", "image/png", "image/webp"]).has(file.type)) {
+      toast.error("Choose a JPEG, PNG, or WebP profile photo.");
+      event.target.value = "";
+      return;
+    }
 
-    if (Number(age) < 18 && !guardian) {
-      toast.error("A parent or guardian is required for athletes under 18.");
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Choose a profile photo smaller than 2 MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setIsPhotoLoading(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProfilePhotoDataUrl(typeof reader.result === "string" ? reader.result : null);
+      setIsPhotoLoading(false);
+    };
+    reader.onerror = () => {
+      setIsPhotoLoading(false);
+      toast.error("The profile photo could not be read. Please try another file.");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearPhoto() {
+    setProfilePhotoDataUrl(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+
+    if (isPhotoLoading) {
+      toast.message("Please wait for the profile photo to finish processing.");
+      return;
+    }
+
+    if (isMinor && !hasGuardian(form)) {
+      toast.error("A guardian name, relationship, and mobile number are required for minors.");
       return;
     }
 
     setSaving(true);
-
     try {
       const athlete = await new LocalAthleteRepository().create(
         {
           address: {
             district: fieldValue(form, "district"),
-            line1: fieldValue(form, "address-line1"),
+            line1: fieldValue(form, "address"),
             line2: null,
             postalCode: fieldValue(form, "postal-code"),
             state: fieldValue(form, "state"),
             villageOrCity: fieldValue(form, "city"),
           },
-          ageCategory: fieldValue(form, "age-category"),
-          consentStatus: isChecked(form, "privacy-consent") ? "granted" : "pending",
-          dateOfBirth: dob,
-          discipline: fieldValue(form, "event"),
-          emailAddress: nullableFieldValue(form, "email"),
-          emergencyContact: contact(form, "emergency"),
+          ageCategory,
+          consentStatus: "granted",
+          dateOfBirth,
+          discipline,
+          emailAddress: null,
+          emergencyContact: null,
           fullName: fieldValue(form, "name"),
-          gender: fieldValue(form, "gender") as "female" | "male" | "non-binary",
-          guardian,
-          heightCm: nullableNumber(height),
-          institutionName: fieldValue(form, "academy"),
+          gender: fieldValue(form, "gender") as
+            "female" | "male" | "non-binary" | "self-describe" | "prefer-not-to-say",
+          guardian: isMinor ? guardianContact(form) : null,
+          heightCm: null,
+          institutionName: fieldValue(form, "institution"),
           mobileNumber: fieldValue(form, "mobile"),
-          sport: fieldValue(form, "sport"),
-          weightKg: nullableNumber(weight),
+          profilePhotoDataUrl,
+          sport,
+          weightKg: null,
         },
         crypto.randomUUID(),
       );
@@ -113,300 +171,308 @@ function RegisterAthlete() {
       navigate({ to: "/select-athlete" });
     } catch (error) {
       console.error(error);
-      toast.error("Unable to save this profile. Check the required details and consent.");
+      toast.error("Unable to save this profile. Check the required fields and consent.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <AppShell title="Register Athlete" subtitle="Athlete Profile" backTo="/dashboard">
-      <form onSubmit={handleSubmit}>
-        <Section title="Identity">
-          <div className="mt-4 flex items-center gap-4">
-            <span className="bg-gradient-primary grid size-20 shrink-0 place-items-center rounded-3xl text-primary-foreground">
-              <Camera className="size-7" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">Profile Photo</p>
-              <button
-                type="button"
-                className="mt-2 rounded-xl bg-secondary px-4 py-2 text-sm font-semibold text-primary"
-              >
-                Upload Photo
-              </button>
+    <AppShell title="Register Athlete" subtitle="Required profile details" backTo="/dashboard" wide>
+      <form onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-4">
+        <section className="border-t-4 border-primary bg-card p-5 shadow-card sm:p-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-primary">New profile</p>
+              <h2 className="mt-1 text-xl font-bold">Athlete essentials</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Fields marked with * are required.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary text-primary">
+                {profilePhotoDataUrl ? (
+                  <img
+                    src={profilePhotoDataUrl}
+                    alt="Selected athlete profile"
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <Camera className="size-6" />
+                )}
+              </div>
+              <div>
+                <input
+                  ref={photoInputRef}
+                  id="profile-photo"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePhotoChange}
+                  className="sr-only"
+                />
+                <label
+                  htmlFor="profile-photo"
+                  className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-primary/35 bg-secondary px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+                >
+                  <ImagePlus className="size-4" />
+                  {profilePhotoDataUrl ? "Change photo" : "Add photo"}
+                </label>
+                {profilePhotoDataUrl ? (
+                  <button
+                    type="button"
+                    onClick={clearPhoto}
+                    className="ml-2 inline-flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    aria-label="Remove selected profile photo"
+                    title="Remove photo"
+                  >
+                    <X className="size-4" />
+                  </button>
+                ) : null}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Optional. JPEG, PNG or WebP, up to 2 MB.
+                </p>
+              </div>
             </div>
           </div>
 
-          <Field id="name" label="Athlete Name">
-            <input id="name" required className={fieldClass} />
-          </Field>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <Field id="name" label="Full name" required>
+              <input id="name" required autoComplete="name" className={fieldClass} />
+            </Field>
+            <Field id="mobile" label="Mobile number" required>
+              <input
+                id="mobile"
+                required
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                pattern="[0-9]{10}"
+                title="Enter a 10-digit mobile number"
+                className={fieldClass}
+              />
+            </Field>
+            <Field id="dob" label="Date of birth" required>
+              <input
+                id="dob"
+                required
+                type="date"
+                max={new Date().toISOString().slice(0, 10)}
+                value={dateOfBirth}
+                onChange={(event) => setDateOfBirth(event.target.value)}
+                className={fieldClass}
+              />
+            </Field>
+            <Field id="gender" label="Gender" required>
+              <select id="gender" required defaultValue="" className={fieldClass}>
+                <option value="" disabled>
+                  Select gender
+                </option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="non-binary">Non-binary</option>
+                <option value="self-describe">Self-describe</option>
+                <option value="prefer-not-to-say">Prefer not to say</option>
+              </select>
+            </Field>
+          </div>
 
-          <Field id="athlete-id" label="Athlete ID (auto-generated)">
-            <input
-              id="athlete-id"
-              readOnly
-              value="Generated securely when saved offline"
-              className={`${fieldClass} text-muted-foreground`}
-            />
-          </Field>
+          {age !== null ? (
+            <div className="mt-4 flex items-center gap-2 border-l-2 border-primary bg-secondary px-3 py-2 text-sm">
+              <ShieldCheck className="size-4 shrink-0 text-primary" />
+              <span>
+                <strong>{age} years</strong> · {ageCategory}
+                {isMinor ? " · guardian details required" : ""}
+              </span>
+            </div>
+          ) : null}
+        </section>
 
-          <Field id="gender" label="Gender">
-            <select id="gender" required defaultValue="" className={fieldClass}>
-              <option value="" disabled>
-                Select gender
-              </option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="non-binary">Non-binary / self-described</option>
-            </select>
-          </Field>
+        <section className="bg-card p-5 shadow-card sm:p-6">
+          <p className="text-xs font-bold uppercase tracking-wide text-primary">Assessment setup</p>
+          <h2 className="mt-1 text-xl font-bold">Sport and location</h2>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <Field id="sport" label="Sport" required>
+              <select
+                id="sport"
+                required
+                value={sport}
+                onChange={(event) => {
+                  setSport(event.target.value);
+                  setDiscipline("");
+                }}
+                className={fieldClass}
+              >
+                <option value="" disabled>
+                  Select sport
+                </option>
+                {Object.keys(sportDisciplines).map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="discipline" label="Discipline / role" required>
+              <select
+                id="discipline"
+                required
+                disabled={!sport}
+                value={discipline}
+                onChange={(event) => setDiscipline(event.target.value)}
+                className={fieldClass}
+              >
+                <option value="" disabled>
+                  {sport ? "Select discipline or role" : "Select a sport first"}
+                </option>
+                {disciplines.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="institution" label="Academy or school" required>
+              <input id="institution" required autoComplete="organization" className={fieldClass} />
+            </Field>
+            <Field id="state" label="State" required>
+              <select id="state" required defaultValue="" className={fieldClass}>
+                <option value="" disabled>
+                  Select state
+                </option>
+                {states.map((state) => (
+                  <option key={state} value={state}>
+                    {state}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field id="district" label="District" required>
+              <input id="district" required autoComplete="address-level2" className={fieldClass} />
+            </Field>
+            <Field id="city" label="City or village" required>
+              <input id="city" required autoComplete="address-level3" className={fieldClass} />
+            </Field>
+            <Field id="address" label="Address" required>
+              <input id="address" required autoComplete="street-address" className={fieldClass} />
+            </Field>
+            <Field id="postal-code" label="Postal code" required>
+              <input
+                id="postal-code"
+                required
+                inputMode="numeric"
+                autoComplete="postal-code"
+                pattern="[0-9]{6}"
+                title="Enter a 6-digit postal code"
+                className={fieldClass}
+              />
+            </Field>
+          </div>
+        </section>
 
-          <Field id="dob" label="Date of Birth">
-            <input
-              id="dob"
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              className={fieldClass}
-            />
-          </Field>
+        {isMinor ? (
+          <section className="bg-card p-5 shadow-card sm:p-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-primary">
+              Required for minors
+            </p>
+            <h2 className="mt-1 text-xl font-bold">Guardian details</h2>
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              <Field id="guardian-name" label="Guardian name" required>
+                <input id="guardian-name" required autoComplete="name" className={fieldClass} />
+              </Field>
+              <Field id="guardian-relationship" label="Relationship" required>
+                <select id="guardian-relationship" required defaultValue="" className={fieldClass}>
+                  <option value="" disabled>
+                    Select relationship
+                  </option>
+                  <option value="Parent">Parent</option>
+                  <option value="Legal guardian">Legal guardian</option>
+                  <option value="Caregiver">Caregiver</option>
+                </select>
+              </Field>
+              <Field id="guardian-mobile" label="Guardian mobile" required>
+                <input
+                  id="guardian-mobile"
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  pattern="[0-9]{10}"
+                  title="Enter a 10-digit mobile number"
+                  className={fieldClass}
+                />
+              </Field>
+            </div>
+          </section>
+        ) : null}
 
-          <Field id="age" label="Age (auto calculated)">
-            <input
-              id="age"
-              readOnly
-              value={`${age} years`}
-              className={`${fieldClass} text-muted-foreground`}
-            />
-          </Field>
-        </Section>
-
-        <Section title="Guardian Details">
-          <Field id="guardian-name" label="Parent / Guardian Name">
-            <input id="guardian-name" className={fieldClass} />
-          </Field>
-          <Field id="guardian-relationship" label="Relationship">
-            <input
-              id="guardian-relationship"
-              placeholder="Parent, guardian or caregiver"
-              className={fieldClass}
-            />
-          </Field>
-          <Field id="guardian-mobile" label="Mobile Number">
-            <input id="guardian-mobile" type="tel" className={fieldClass} />
-          </Field>
-          <Field id="guardian-email" label="Email (optional)">
-            <input id="guardian-email" type="email" className={fieldClass} />
-          </Field>
-        </Section>
-
-        <Section title="Sport Details">
-          <Field id="sport" label="Sport">
-            <select id="sport" required defaultValue="" className={fieldClass}>
-              <option value="" disabled>
-                Select sport
-              </option>
-              <option value="Athletics">Athletics</option>
-              <option value="Football">Football</option>
-              <option value="Kabaddi">Kabaddi</option>
-              <option value="Basketball">Basketball</option>
-              <option value="Hockey">Hockey</option>
-              <option value="Wrestling">Wrestling</option>
-            </select>
-          </Field>
-          <Field id="event" label="Event / Discipline">
-            <input id="event" required className={fieldClass} />
-          </Field>
-          <Field id="age-category" label="Age Category">
-            <select id="age-category" required defaultValue="" className={fieldClass}>
-              <option value="" disabled>
-                Select age category
-              </option>
-              <option value="Under 14">Under 14</option>
-              <option value="Under 17">Under 17</option>
-              <option value="Under 19">Under 19</option>
-              <option value="Open">Open</option>
-            </select>
-          </Field>
-          <Field id="state" label="State">
-            <input id="state" required className={fieldClass} />
-          </Field>
-          <Field id="district" label="District">
-            <input id="district" required className={fieldClass} />
-          </Field>
-          <Field id="academy" label="Academy / School">
-            <input id="academy" required className={fieldClass} />
-          </Field>
-          <Field id="coach" label="Coach Name">
-            <input id="coach" className={fieldClass} />
-          </Field>
-        </Section>
-
-        <Section title="Physical Profile">
-          <Field id="height" label="Height (cm)">
-            <input
-              id="height"
-              type="number"
-              min="1"
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              className={fieldClass}
-            />
-          </Field>
-          <Field id="weight" label="Weight (kg)">
-            <input
-              id="weight"
-              type="number"
-              min="1"
-              value={weight}
-              onChange={(e) => setWeight(e.target.value)}
-              className={fieldClass}
-            />
-          </Field>
-          <Field id="bmi" label="BMI (auto calculated)">
-            <input
-              id="bmi"
-              readOnly
-              value={bmi}
-              className={`${fieldClass} text-muted-foreground`}
-            />
-          </Field>
-          <Field id="hand" label="Dominant Hand">
-            <select id="hand" defaultValue="Right" className={fieldClass}>
-              <option>Right</option>
-              <option>Left</option>
-              <option>Ambidextrous</option>
-            </select>
-          </Field>
-          <Field id="leg" label="Dominant Leg">
-            <select id="leg" defaultValue="Right" className={fieldClass}>
-              <option>Right</option>
-              <option>Left</option>
-            </select>
-          </Field>
-        </Section>
-
-        <Section title="Contact">
-          <Field id="mobile" label="Mobile Number">
-            <input id="mobile" type="tel" required className={fieldClass} />
-          </Field>
-          <Field id="email" label="Email (optional)">
-            <input
-              id="email"
-              type="email"
-              placeholder="athlete@example.in"
-              className={fieldClass}
-            />
-          </Field>
-          <Field id="emergency-name" label="Emergency Contact Name">
-            <input id="emergency-name" required className={fieldClass} />
-          </Field>
-          <Field id="emergency-relationship" label="Emergency Contact Relationship">
-            <input id="emergency-relationship" required className={fieldClass} />
-          </Field>
-          <Field id="emergency-mobile" label="Emergency Contact Mobile">
-            <input id="emergency-mobile" type="tel" required className={fieldClass} />
-          </Field>
-          <Field id="emergency-email" label="Emergency Contact Email (optional)">
-            <input id="emergency-email" type="email" className={fieldClass} />
-          </Field>
-          <Field id="address-line1" label="Address">
-            <input id="address-line1" required className={fieldClass} />
-          </Field>
-          <Field id="city" label="Village / City">
-            <input id="city" required className={fieldClass} />
-          </Field>
-          <Field id="postal-code" label="Postal Code">
-            <input id="postal-code" required className={fieldClass} />
-          </Field>
-        </Section>
-
-        <Section title="Medical">
-          <Field id="blood" label="Blood Group">
-            <select id="blood" defaultValue="B+" className={fieldClass}>
-              {["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map((b) => (
-                <option key={b}>{b}</option>
-              ))}
-            </select>
-          </Field>
-          <Field id="medical" label="Medical Conditions">
-            <textarea
-              id="medical"
-              rows={2}
-              defaultValue="None reported"
-              className={`${fieldClass} h-auto`}
-            />
-          </Field>
-          <Field id="injuries" label="Previous Injuries">
-            <textarea
-              id="injuries"
-              rows={2}
-              defaultValue="Left ankle sprain (2024, recovered)"
-              className={`${fieldClass} h-auto`}
-            />
-          </Field>
-        </Section>
-
-        <Section title="Consent & Privacy">
-          <label className="mt-4 flex items-start gap-3 text-sm text-muted-foreground">
+        <section className="border-l-4 border-primary bg-secondary p-5">
+          <label className="flex items-start gap-3 text-sm text-foreground">
             <input
               id="privacy-consent"
               type="checkbox"
               required
-              className="mt-1 size-4 accent-[var(--primary)]"
+              className="mt-0.5 size-4 shrink-0 accent-[var(--primary)]"
             />
             <span>
-              I confirm that the athlete or their authorized guardian has accepted the assessment
-              and privacy consent required for this profile.
+              I confirm that the athlete, or their authorized guardian, has accepted the assessment
+              and privacy consent for this profile.
             </span>
           </label>
-        </Section>
+        </section>
 
         <button
           type="submit"
-          disabled={saving}
-          className="bg-gradient-primary mt-5 h-14 w-full rounded-2xl text-base font-semibold text-primary-foreground shadow-card transition-transform active:scale-[0.98] disabled:opacity-70"
+          disabled={saving || isPhotoLoading}
+          className="bg-gradient-primary flex h-14 w-full items-center justify-center rounded-lg text-base font-semibold text-primary-foreground shadow-card transition-transform active:scale-[0.98] disabled:opacity-70"
         >
-          {saving ? "Saving Offline..." : "Save Athlete Profile"}
+          {saving
+            ? "Saving secure profile..."
+            : isPhotoLoading
+              ? "Processing photo..."
+              : "Save athlete profile"}
         </button>
       </form>
     </AppShell>
   );
 }
 
-function contact(form: HTMLFormElement, prefix: "emergency" | "guardian") {
+function ageOnDate(dateOfBirth: string) {
+  if (!dateOfBirth) return null;
+  const birthDate = new Date(`${dateOfBirth}T00:00:00.000Z`);
+  if (Number.isNaN(birthDate.getTime()) || birthDate > new Date()) return null;
+
+  const today = new Date();
+  const birthdayThisYear = new Date(
+    today.getFullYear(),
+    birthDate.getUTCMonth(),
+    birthDate.getUTCDate(),
+  );
+  return today.getFullYear() - birthDate.getUTCFullYear() - Number(today < birthdayThisYear);
+}
+
+function ageCategoryFor(age: number | null) {
+  if (age === null) return "Not calculated";
+  if (age < 14) return "Under 14";
+  if (age < 17) return "Under 17";
+  if (age < 19) return "Under 19";
+  return "Open";
+}
+
+function guardianContact(form: HTMLFormElement) {
   return {
-    emailAddress: nullableFieldValue(form, `${prefix}-email`),
-    fullName: fieldValue(form, `${prefix}-name`),
-    mobileNumber: fieldValue(form, `${prefix}-mobile`),
-    relationship: fieldValue(form, `${prefix}-relationship`),
+    emailAddress: null,
+    fullName: fieldValue(form, "guardian-name"),
+    mobileNumber: fieldValue(form, "guardian-mobile"),
+    relationship: fieldValue(form, "guardian-relationship"),
   };
 }
 
-function fieldValue(form: HTMLFormElement, id: string) {
-  return (
-    form
-      .querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(`#${id}`)
-      ?.value.trim() ?? ""
+function hasGuardian(form: HTMLFormElement) {
+  return ["guardian-name", "guardian-relationship", "guardian-mobile"].every((id) =>
+    fieldValue(form, id),
   );
 }
 
-function isChecked(form: HTMLFormElement, id: string) {
-  return form.querySelector<HTMLInputElement>(`#${id}`)?.checked ?? false;
-}
-
-function nullableFieldValue(form: HTMLFormElement, id: string) {
-  return fieldValue(form, id) || null;
-}
-
-function nullableNumber(value: string) {
-  return value ? Number(value) : null;
-}
-
-function optionalContact(form: HTMLFormElement, prefix: "guardian") {
-  const person = contact(form, prefix);
-  return person.fullName || person.relationship || person.mobileNumber || person.emailAddress
-    ? person
-    : null;
+function fieldValue(form: HTMLFormElement, id: string) {
+  return form.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value.trim() ?? "";
 }

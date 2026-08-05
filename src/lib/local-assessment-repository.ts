@@ -156,6 +156,7 @@ export class LocalAssessmentRepository {
       if (!stored) throw new AssessmentAttemptVersionConflictError();
 
       const current = await Dexie.waitFor(this.decrypt(stored));
+      // Reject stale reviews so a coach cannot overwrite a newer metric validation from another session.
       if (current.version !== version) throw new AssessmentAttemptVersionConflictError();
       if (
         reviewStatus === "accepted" &&
@@ -181,6 +182,7 @@ export class LocalAssessmentRepository {
       await this.database.attempts.put({ id: attempt.id, payload });
       return attempt;
     });
+    // Audit events are appended after the encrypted state transition so they describe committed state only.
     await this.recordAuditEvent({
       action: "assessment-reviewed",
       actor: "coach",
@@ -203,6 +205,7 @@ export class LocalAssessmentRepository {
       if (!stored) throw new AssessmentAttemptVersionConflictError();
 
       const current = await Dexie.waitFor(this.decrypt(stored));
+      // Coach validation uses the same optimistic-concurrency rule as review decisions.
       if (current.version !== version) throw new AssessmentAttemptVersionConflictError();
       if (current.evaluation?.state === "invalid-capture") {
         throw new Error("An invalid capture must be retaken before it can be coach validated.");
