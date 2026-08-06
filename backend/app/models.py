@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 
 from .database import Base
 
@@ -23,13 +23,26 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String(120),
+        unique=True,
+        index=True,
+        nullable=False,
+        default=lambda: "user-" + str(uuid4()),
+    )
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mobile_number: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
     mobile_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String(512), nullable=False)
+    password_hash = synonym("hashed_password")
     roles_json: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    athletes: Mapped[list["AthleteRecord"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
 
 
 class AuthChallenge(Base):
@@ -41,7 +54,7 @@ class AuthChallenge(Base):
     purpose: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
     secret_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     target: Mapped[str | None] = mapped_column(String(254), nullable=True)
-    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), index=True, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
@@ -53,12 +66,24 @@ class AssessmentAttemptRecord(Base):
     __tablename__ = "assessment_attempts"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    athlete_id: Mapped[str] = mapped_column(String(160), index=True, nullable=False)
+    athlete_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("athletes.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
+    test_id: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    measurement_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    measurement_unit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    review_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     encrypted_payload: Mapped[str] = mapped_column(Text, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    athlete: Mapped["AthleteRecord"] = relationship(back_populates="assessments")
 
 
 class AthleteRecord(Base):
@@ -67,13 +92,25 @@ class AthleteRecord(Base):
     __tablename__ = "athletes"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True, nullable=False)
+    owner_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
     athlete_id: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
+    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    date_of_birth: Mapped[str] = mapped_column(String(10), nullable=False)
+    gender: Mapped[str] = mapped_column(String(32), nullable=False)
+    sport: Mapped[str] = mapped_column(String(80), nullable=False)
+    discipline: Mapped[str] = mapped_column(String(80), nullable=False)
+    height_cm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weight_kg: Mapped[float | None] = mapped_column(Float, nullable=True)
     encrypted_payload: Mapped[str] = mapped_column(Text, nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    owner: Mapped[User] = relationship(back_populates="athletes")
+    assessments: Mapped[list[AssessmentAttemptRecord]] = relationship(
+        back_populates="athlete",
+        cascade="all, delete-orphan",
+    )
 
 
 class AthleteIdempotencyRecord(Base):
@@ -82,9 +119,9 @@ class AthleteIdempotencyRecord(Base):
     __tablename__ = "athlete_idempotency_records"
 
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
-    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    athlete_id: Mapped[str] = mapped_column(String(36), ForeignKey("athletes.id"), nullable=False)
+    athlete_id: Mapped[str] = mapped_column(String(36), ForeignKey("athletes.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -94,9 +131,9 @@ class IdempotencyRecord(Base):
     __tablename__ = "idempotency_records"
 
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
-    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    attempt_id: Mapped[str] = mapped_column(String(36), ForeignKey("assessment_attempts.id"), nullable=False)
+    attempt_id: Mapped[str] = mapped_column(String(36), ForeignKey("assessment_attempts.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
@@ -106,7 +143,7 @@ class AuditEvent(Base):
     __tablename__ = "audit_events"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
-    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    actor_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     resource_id: Mapped[str] = mapped_column(String(160), nullable=False)
     correlation_id: Mapped[str] = mapped_column(String(120), nullable=False)

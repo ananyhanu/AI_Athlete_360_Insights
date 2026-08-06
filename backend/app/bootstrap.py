@@ -7,7 +7,7 @@ import sys
 from sqlalchemy import select
 
 from .config import Settings
-from .database import Database
+from .database import Database, commit_transaction
 from .models import User
 from .security import hash_password
 
@@ -40,7 +40,7 @@ def main() -> None:
                 password_hash=hash_password(password),
                 roles_json=json.dumps(["national-admin"]),
             ))
-        session.commit()
+        commit_transaction(session)
     finally:
         session.close()
 

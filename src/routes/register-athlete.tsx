@@ -4,8 +4,10 @@ import { useMemo, useRef, useState } from "react";
 import { Camera, ImagePlus, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { ApiError } from "@/lib/api-client";
 import { setSelectedAthleteId } from "@/lib/athletes";
-import { LocalAthleteRepository } from "@/lib/local-athlete-repository";
+import { HttpAthleteRepository } from "@/lib/athlete-repository";
+import { createAuthenticatedApiClient } from "@/lib/persistence-client";
 
 export const Route = createFileRoute("/register-athlete")({
   head: () => ({
@@ -136,7 +138,7 @@ function RegisterAthlete() {
 
     setSaving(true);
     try {
-      const athlete = await new LocalAthleteRepository().create(
+      const athlete = await new HttpAthleteRepository(createAuthenticatedApiClient()).create(
         {
           address: {
             district: fieldValue(form, "district"),
@@ -167,11 +169,15 @@ function RegisterAthlete() {
       );
 
       setSelectedAthleteId(athlete.id);
-      toast.success("Athlete profile saved securely on this device.");
+      toast.success("Athlete profile saved to the assessment database.");
       navigate({ to: "/select-athlete" });
     } catch (error) {
       console.error(error);
-      toast.error("Unable to save this profile. Check the required fields and consent.");
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : "Unable to save this profile. Check the required fields and consent.",
+      );
     } finally {
       setSaving(false);
     }

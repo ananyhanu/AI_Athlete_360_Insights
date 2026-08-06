@@ -5,9 +5,10 @@ import json
 from typing import Any, Dict, List, Tuple
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from .database import commit_transaction
 from .models import AssessmentAttemptRecord, AthleteRecord, AuditEvent, IdempotencyRecord
 from .schemas import AssessmentAttempt
 from .security import Principal
@@ -103,22 +104,25 @@ def upsert_assessment(
                 request_hash=request_hash,
                 attempt_id=attempt_id,
             ))
-            session.commit()
+            commit_transaction(session, stored)
             return cipher.decrypt(stored.encrypted_payload), False
 
         stored.athlete_id = attempt.athlete_id
         stored.encrypted_payload = cipher.encrypt(payload)
         stored.payload_hash = request_hash
         stored.version = attempt.version
+        apply_assessment_columns(stored, attempt)
     else:
         stored = AssessmentAttemptRecord(
             id=attempt_id,
             athlete_id=attempt.athlete_id,
+            **assessment_columns(attempt),
             encrypted_payload=cipher.encrypt(payload),
             payload_hash=request_hash,
             version=attempt.version,
         )
         session.add(stored)
+        session.flush()
 
     session.add(IdempotencyRecord(
         key=scoped_key,
@@ -134,7 +138,7 @@ def upsert_assessment(
         details_json=canonical_json({"created": created, "version": attempt.version}),
     ))
     # Commit the encrypted payload, idempotency mapping, and audit event as one database transaction.
-    session.commit()
+    commit_transaction(session, stored)
     return payload, created
 
 
@@ -176,3 +180,86 @@ def payload_hash(payload: Dict[str, Any]) -> str:
 def canonical_json(payload: Dict[str, Any]) -> str:
     """Serialize structured data deterministically for encryption, hashes, and audit details."""
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def assessment_columns(attempt: AssessmentAttempt) -> Dict[str, Any]:
+    """Extract queryable assessment fields while retaining the full encrypted payload."""
+    return {
+        "test_id": attempt.test_id,
+        "measurement_value": attempt.measurement.value if attempt.measurement else None,
+        "measurement_unit": attempt.measurement.unit if attempt.measurement else None,
+        "score": attempt.evaluation.score if attempt.evaluation else None,
+        "review_status": attempt.review_status,
+        "performed_at": attempt.created_at,
+    }
+
+
+def apply_assessment_columns(stored: AssessmentAttemptRecord, attempt: AssessmentAttempt) -> None:
+    """Keep assessment reporting columns consistent with the encrypted payload revision."""
+    for column, value in assessment_columns(attempt).items():
+        setattr(stored, column, value)
+
+
+def save_test_result(
+    session: Session,
+    cipher: PayloadCipher,
+    principal: Principal,
+    attempt: AssessmentAttempt,
+    idempotency_key: str,
+    correlation_id: str,
+) -> Tuple[Dict[str, Any], bool]:
+    """Save a new or versioned assessment result using the public CRUD vocabulary."""
+    return upsert_assessment(session, cipher, principal, attempt, idempotency_key, correlation_id)
+
+
+def get_test_history(
+    session: Session,
+    cipher: PayloadCipher,
+    athlete_id: str,
+) -> List[Dict[str, Any]]:
+    """Return permanent assessment history after the caller has validated athlete ownership."""
+    return list_assessments_for_athlete(session, cipher, athlete_id)
+
+
+def update_test_result(
+    session: Session,
+    cipher: PayloadCipher,
+    principal: Principal,
+    attempt: AssessmentAttempt,
+    idempotency_key: str,
+    correlation_id: str,
+) -> Tuple[Dict[str, Any], bool]:
+    """Persist a newer version of an assessment result using optimistic concurrency."""
+    return upsert_assessment(session, cipher, principal, attempt, idempotency_key, correlation_id)
+
+
+def delete_test_result(
+    session: Session,
+    principal: Principal,
+    athlete_id: str,
+    attempt_id: str,
+    correlation_id: str,
+) -> bool:
+    """Permanently delete one assessment only when its athlete belongs to the caller."""
+    stored = session.scalar(
+        select(AssessmentAttemptRecord)
+        .join(AssessmentAttemptRecord.athlete)
+        .where(
+            AssessmentAttemptRecord.id == attempt_id,
+            AssessmentAttemptRecord.athlete_id == athlete_id,
+            AthleteRecord.owner_id == principal.user_id,
+        )
+    )
+    if not stored:
+        return False
+    session.execute(delete(IdempotencyRecord).where(IdempotencyRecord.attempt_id == attempt_id))
+    session.add(AuditEvent(
+        actor_id=principal.user_id,
+        action="assessment.deleted",
+        resource_id=attempt_id,
+        correlation_id=correlation_id,
+        details_json=canonical_json({"athleteId": athlete_id, "version": stored.version}),
+    ))
+    session.delete(stored)
+    commit_transaction(session)
+    return True

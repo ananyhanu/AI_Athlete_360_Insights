@@ -10,7 +10,7 @@ import {
 } from "@/lib/authentication-service";
 import type { AppRole } from "@/lib/authorization";
 import { assessmentApiBaseUrl } from "@/lib/assessment-sync-runtime";
-import { startAuthenticatedSession, startPrototypeCoachSession } from "@/lib/prototype-session";
+import { startAuthenticatedSession } from "@/lib/prototype-session";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -51,11 +51,7 @@ function Login() {
 
     try {
       if (typeof email !== "string" || typeof password !== "string") return;
-      if (!apiBaseUrl) {
-        startPrototypeCoachSession(email);
-        await navigate({ to: "/dashboard" });
-        return;
-      }
+      if (!apiBaseUrl) throw new Error("The assessment API is not configured.");
       const authenticated = await authenticateWithPassword({ baseUrl: apiBaseUrl, email, password });
       await completeSession(authenticated.accessToken, authenticated.user.email, authenticated.user.roles);
     } catch (caught) {
@@ -99,11 +95,12 @@ function Login() {
     setLoading(true);
     setError(null);
     try {
-      await requestMobileOtp({
+      const response = await requestMobileOtp({
         baseUrl: apiBaseUrl,
         email: pendingSignup.email,
         mobileNumber: pendingSignup.mobileNumber,
       });
+      setOtp(response.developmentOtp ?? "");
       setOtpSent(true);
     } catch (caught) {
       setError(authenticationError(caught));
@@ -208,8 +205,8 @@ function Login() {
                   <AuthField icon={<Mail className="size-5" />} id="signup-email" label="Work email">
                     <input id="signup-email" name="email" type="email" required placeholder="coach@sports.gov.in" className={inputClass} />
                   </AuthField>
-                  <AuthField icon={<Phone className="size-5" />} id="mobile-number" label="Mobile number">
-                    <input id="mobile-number" name="mobileNumber" type="tel" required placeholder="+919876543210" className={inputClass} />
+                  <AuthField icon={<Phone className="size-5" />} id="mobile-number" label="Mobile number with country code">
+                    <input id="mobile-number" name="mobileNumber" type="tel" inputMode="tel" required pattern="\+\d{8,15}" title="Include the country code, for example +919876543210." placeholder="+919876543210" className={inputClass} />
                   </AuthField>
                   <AuthField icon={<Lock className="size-5" />} id="signup-password" label="Create password">
                     <input id="signup-password" name="password" type="password" required minLength={12} placeholder="At least 12 characters" className={inputClass} />

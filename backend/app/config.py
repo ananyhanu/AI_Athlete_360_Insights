@@ -13,22 +13,22 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="AA360_", extra="ignore")
 
     environment: Literal["development", "test", "production"] = "development"
-    database_url: str = "sqlite:///./ai-athlete-360.db"
+    database_url: str = "sqlite:///./data/app.db"
     jwt_access_token_minutes: int = 30
     jwt_secret: str = ""
     data_encryption_key: str = ""
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:8080,http://127.0.0.1:8080"
     trusted_hosts: str = "localhost,127.0.0.1"
-    api_public_url: str = "http://localhost:8080"
-    app_public_url: str = "http://localhost:3000"
-    email_delivery_mode: Literal["disabled", "console", "smtp"] = "disabled"
+    api_public_url: str = "http://localhost:8000"
+    app_public_url: str = "http://localhost:8080"
+    email_delivery_mode: Literal["disabled", "console", "smtp"] = "console"
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_starttls: bool = True
-    mobile_otp_delivery_mode: Literal["disabled", "console", "twilio"] = "disabled"
+    mobile_otp_delivery_mode: Literal["disabled", "console", "twilio"] = "console"
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_from_number: str = ""

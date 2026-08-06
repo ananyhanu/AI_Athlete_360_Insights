@@ -106,6 +106,11 @@ class AthleteDraft(ApiModel):
     height_cm: Optional[float] = Field(default=None, gt=0, le=300)
     institution_name: str = Field(min_length=1, max_length=160)
     mobile_number: str = Field(min_length=7, max_length=20)
+    profile_photo_data_url: Optional[str] = Field(
+        default=None,
+        pattern=r"^data:image/(jpeg|png|webp);base64,",
+        max_length=3_000_000,
+    )
     sport: str = Field(min_length=1, max_length=80)
     weight_kg: Optional[float] = Field(default=None, gt=0, le=500)
 
@@ -126,6 +131,11 @@ class AthleteChanges(ApiModel):
     height_cm: Optional[float] = Field(default=None, gt=0, le=300)
     institution_name: Optional[str] = Field(default=None, min_length=1, max_length=160)
     mobile_number: Optional[str] = Field(default=None, min_length=7, max_length=20)
+    profile_photo_data_url: Optional[str] = Field(
+        default=None,
+        pattern=r"^data:image/(jpeg|png|webp);base64,",
+        max_length=3_000_000,
+    )
     sport: Optional[str] = Field(default=None, min_length=1, max_length=80)
     weight_kg: Optional[float] = Field(default=None, gt=0, le=500)
 

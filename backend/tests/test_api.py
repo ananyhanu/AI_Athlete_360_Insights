@@ -8,10 +8,11 @@ from unittest.mock import patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from backend.app.config import Settings
 from backend.app.main import create_app
-from backend.app.models import AthleteRecord, User
+from backend.app.models import AssessmentAttemptRecord, AthleteRecord, User
 from backend.app.security import hash_password
 
 
@@ -82,6 +83,23 @@ class ApiTest(unittest.TestCase):
         session = self.app.state.database.session()
         try:
             self.assertIsNone(session.get(User, "missing"))
+        finally:
+            session.close()
+
+    def test_successful_login_updates_last_login(self):
+        """Persist a login timestamp only after a verified user supplies a valid password."""
+        response = self.client.post(
+            "/v1/auth/token",
+            json={"email": "coach@example.in", "password": "correct-horse-battery-staple"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        session = self.app.state.database.session()
+        try:
+            user = session.scalar(select(User).where(User.email == "coach@example.in"))
+            self.assertIsNotNone(user)
+            self.assertIsNotNone(user.last_login)
+            self.assertTrue(user.username)
         finally:
             session.close()
 
@@ -193,6 +211,62 @@ class ApiTest(unittest.TestCase):
         finally:
             session.close()
 
+    def test_deletes_persisted_assessments_and_cascades_on_athlete_delete(self):
+        """Ensure delete endpoints remove durable assessment rows and athlete-owned history."""
+        token = self.client.post(
+            "/v1/auth/token",
+            json={"email": "coach@example.in", "password": "correct-horse-battery-staple"},
+        ).json()["accessToken"]
+        athlete = self.create_athlete(token)
+        attempt = assessment_attempt(athlete["id"])
+        created = self.client.post(
+            "/v1/assessment-attempts",
+            json=attempt,
+            headers={"Authorization": "Bearer " + token, "Idempotency-Key": attempt["id"] + ":v1"},
+        )
+        self.assertEqual(created.status_code, 201)
+
+        session = self.app.state.database.session()
+        try:
+            stored = session.get(AssessmentAttemptRecord, attempt["id"])
+            self.assertIsNotNone(stored)
+            self.assertEqual(stored.test_id, "height")
+            self.assertEqual(stored.measurement_value, 176)
+        finally:
+            session.close()
+
+        deleted_attempt = self.client.delete(
+            f"/v1/athletes/{athlete['id']}/assessment-attempts/{attempt['id']}",
+            headers={"Authorization": "Bearer " + token},
+        )
+        self.assertEqual(deleted_attempt.status_code, 204)
+        self.assertEqual(
+            self.client.get(
+                f"/v1/athletes/{athlete['id']}/assessment-attempts",
+                headers={"Authorization": "Bearer " + token},
+            ).json(),
+            [],
+        )
+
+        second_attempt = assessment_attempt(athlete["id"])
+        self.client.post(
+            "/v1/assessment-attempts",
+            json=second_attempt,
+            headers={"Authorization": "Bearer " + token, "Idempotency-Key": second_attempt["id"] + ":v1"},
+        )
+        deleted_athlete = self.client.delete(
+            "/v1/athletes/" + athlete["id"],
+            headers={"Authorization": "Bearer " + token},
+        )
+        self.assertEqual(deleted_athlete.status_code, 204)
+
+        session = self.app.state.database.session()
+        try:
+            self.assertIsNone(session.get(AthleteRecord, athlete["id"]))
+            self.assertIsNone(session.get(AssessmentAttemptRecord, second_attempt["id"]))
+        finally:
+            session.close()
+
     def test_rejects_assessments_for_another_coachs_athlete(self):
         """Confirm cross-coach assessment access returns a non-disclosing not-found response."""
         first_token = self.client.post(
@@ -279,6 +353,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(registered.status_code, 202)
         # The mocked delivery call exposes the otherwise private one-time verification token.
         verification_token = send_verification.call_args.args[2]
+        self.assertNotEqual(verification_token, "new.coach@example.in")
         denied = self.client.post(
             "/v1/auth/token",
             json={"email": "new.coach@example.in", "password": "new-correct-horse-battery-staple"},
@@ -313,6 +388,7 @@ class ApiTest(unittest.TestCase):
             )
 
         self.assertEqual(requested.status_code, 202)
+        self.assertNotIn("developmentOtp", requested.json())
         otp = send_otp.call_args.args[2]
         verified = self.client.post(
             "/v1/auth/mobile-otp/verify",

@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { batteryTests, type BatteryTest } from "./battery-tests";
 import type { AssessmentAttempt } from "./assessment-domain";
-import {
-  assessmentAttemptChangedEvent,
-  LocalAssessmentRepository,
-} from "./local-assessment-repository";
+import { PersistentAssessmentRepository } from "./persistent-assessment-repository";
 
 export type AssessmentTestState =
   | "accepted"
@@ -103,24 +100,25 @@ export function useAssessmentSummary(athleteId: string) {
     let active = true;
 
     async function refresh() {
-      const repository = new LocalAssessmentRepository();
+      if (!athleteId) {
+        if (active) setSummary(summarizeAssessment([]));
+        return;
+      }
+      const repository = new PersistentAssessmentRepository(athleteId);
       try {
-        const attempts = await repository.listForAthlete(athleteId);
+        const attempts = await repository.listForAthlete();
         if (active) setSummary(summarizeAssessment(attempts));
       } catch (error) {
         console.error(error);
         if (active) setSummary(summarizeAssessment([]));
       } finally {
-        repository.close();
         if (active) setLoading(false);
       }
     }
 
     void refresh();
-    window.addEventListener(assessmentAttemptChangedEvent, refresh);
     return () => {
       active = false;
-      window.removeEventListener(assessmentAttemptChangedEvent, refresh);
     };
   }, [athleteId]);
 

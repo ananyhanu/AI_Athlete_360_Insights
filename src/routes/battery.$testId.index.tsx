@@ -5,7 +5,7 @@ import { AppShell } from "@/components/AppShell";
 import { useSelectedAthlete } from "@/lib/athletes";
 import { getBatteryTest, instructionsFor } from "@/lib/battery-tests";
 import { evaluateManualRangeMeasurement } from "@/lib/ai-measurement";
-import { LocalAssessmentRepository } from "@/lib/local-assessment-repository";
+import { PersistentAssessmentRepository } from "@/lib/persistent-assessment-repository";
 
 export const Route = createFileRoute("/battery/$testId/")({
   head: () => ({
@@ -53,7 +53,7 @@ function AssessmentScreen() {
     }
 
     setSavingManual(true);
-    const repository = new LocalAssessmentRepository();
+    const repository = new PersistentAssessmentRepository(athlete.id);
     try {
       const evaluation = evaluateManualRangeMeasurement(test, value);
       const attempt = await repository.create({
@@ -72,9 +72,8 @@ function AssessmentScreen() {
       });
     } catch (error) {
       console.error(error);
-      setManualError("The measurement could not be saved securely on this device.");
+      setManualError("The measurement could not be saved to the assessment database.");
     } finally {
-      repository.close();
       setSavingManual(false);
     }
   }

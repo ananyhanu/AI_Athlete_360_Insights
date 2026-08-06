@@ -3,7 +3,7 @@ import { assessmentApiBaseUrl, shouldAttemptAutomaticSync } from "./assessment-s
 
 describe("assessment sync runtime configuration", () => {
   it("requires HTTPS for non-local assessment APIs", () => {
-    expect(assessmentApiBaseUrl()).toBeNull();
+    expect(assessmentApiBaseUrl()).toBe("http://127.0.0.1:8000");
     expect(assessmentApiBaseUrl("https://assessments.example.in/v1")).toBe(
       "https://assessments.example.in",
     );

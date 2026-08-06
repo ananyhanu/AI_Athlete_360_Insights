@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { AthleteRecord } from "./athlete-domain";
-import { LocalAthleteRepository } from "./local-athlete-repository";
+import { ApiClient } from "./api-client";
+import { assessmentApiBaseUrl } from "./assessment-sync-runtime";
+import { HttpAthleteRepository } from "./athlete-repository";
+import { getServerAccessToken } from "./prototype-session";
 
 export type Athlete = {
   id: string;
@@ -29,111 +32,7 @@ export type Athlete = {
   lastAssessment: string;
 };
 
-export const athletes: Athlete[] = [
-  {
-    id: "arjun-sharma",
-    name: "Arjun Sharma",
-    age: 17,
-    dob: "12 March 2009",
-    gender: "Male",
-    sport: "Athletics",
-    event: "100m Sprint",
-    athleteId: "ATH-2026-0184",
-    state: "Maharashtra",
-    district: "Pune",
-    academy: "Shivaji Sports Academy",
-    coach: "Coach Ramesh Kumar",
-    heightCm: 172,
-    weightKg: 61,
-    bmi: 20.6,
-    mobile: "+91 98200 41827",
-    email: "arjun.sharma@example.in",
-    bloodGroup: "B+",
-    medical: "None reported",
-    injuries: "Left ankle sprain (2024, recovered)",
-    dominantHand: "Right",
-    dominantLeg: "Right",
-    lastAssessment: "18 July 2026",
-  },
-  {
-    id: "rohit-kumar",
-    name: "Rohit Kumar",
-    age: 19,
-    dob: "02 January 2007",
-    gender: "Male",
-    sport: "Football",
-    event: "Midfielder",
-    athleteId: "ATH-2026-0192",
-    state: "Haryana",
-    district: "Rohtak",
-    academy: "Govt. Model School, Rohtak",
-    coach: "Coach Ramesh Kumar",
-    heightCm: 178,
-    weightKg: 70,
-    bmi: 22.1,
-    mobile: "+91 98110 55321",
-    email: "rohit.k@example.in",
-    bloodGroup: "O+",
-    medical: "Mild asthma",
-    injuries: "None",
-    dominantHand: "Right",
-    dominantLeg: "Left",
-    lastAssessment: "29 July 2026",
-  },
-  {
-    id: "priya-singh",
-    name: "Priya Singh",
-    age: 16,
-    dob: "22 September 2009",
-    gender: "Female",
-    sport: "Kabaddi",
-    event: "Raider",
-    athleteId: "ATH-2026-0207",
-    state: "Uttar Pradesh",
-    district: "Varanasi",
-    academy: "SAI Training Centre, Varanasi",
-    coach: "Coach Ramesh Kumar",
-    heightCm: 163,
-    weightKg: 54,
-    bmi: 20.3,
-    mobile: "+91 90123 77410",
-    email: "",
-    bloodGroup: "A+",
-    medical: "None reported",
-    injuries: "Right shoulder strain (2025, recovered)",
-    dominantHand: "Right",
-    dominantLeg: "Right",
-    lastAssessment: "01 August 2026",
-  },
-  {
-    id: "aman-verma",
-    name: "Aman Verma",
-    age: 18,
-    dob: "08 May 2008",
-    gender: "Male",
-    sport: "Basketball",
-    event: "Point Guard",
-    athleteId: "ATH-2026-0215",
-    state: "Karnataka",
-    district: "Bengaluru Urban",
-    academy: "Jain Sports Academy",
-    coach: "Coach Ramesh Kumar",
-    heightCm: 184,
-    weightKg: 76,
-    bmi: 22.4,
-    mobile: "+91 99450 12876",
-    email: "aman.verma@example.in",
-    bloodGroup: "AB+",
-    medical: "None reported",
-    injuries: "None",
-    dominantHand: "Left",
-    dominantLeg: "Left",
-    lastAssessment: "31 July 2026",
-  },
-];
-
 const STORAGE_KEY = "aa360.selectedAthleteId";
-let localAthleteRepository: LocalAthleteRepository | undefined;
 const loadingAthlete: Athlete = {
   academy: "Loading",
   age: 0,
@@ -170,7 +69,7 @@ export function initials(name: string) {
 }
 
 export function getAthlete(id: string | null): Athlete {
-  return athletes.find((a) => a.id === id) ?? (athletes[0] as Athlete);
+  return { ...loadingAthlete, id: id ?? "" };
 }
 
 export function setSelectedAthleteId(id: string) {
@@ -185,7 +84,7 @@ export function useAthletes() {
   const [registeredAthletes, setRegisteredAthletes] = useState<Athlete[]>([]);
 
   useEffect(() => {
-    const repository = getLocalAthleteRepository();
+    const repository = getRemoteAthleteRepository();
     if (!repository) return;
 
     let active = true;
@@ -201,30 +100,22 @@ export function useAthletes() {
     };
   }, []);
 
-  return useMemo(() => [...registeredAthletes, ...athletes], [registeredAthletes]);
+  return registeredAthletes;
 }
 
 export function useSelectedAthlete(): Athlete {
-  const [athlete, setAthlete] = useState<Athlete>(() => {
-    const id = getSelectedAthleteId();
-    return athletes.find((candidate) => candidate.id === id) ?? { ...loadingAthlete, id: id ?? "" };
-  });
+  const [athlete, setAthlete] = useState<Athlete>(() => ({
+    ...loadingAthlete,
+    id: getSelectedAthleteId() ?? "",
+  }));
 
   useEffect(() => {
     const id = getSelectedAthleteId();
-    const demoAthlete = athletes.find((candidate) => candidate.id === id);
-
-    if (demoAthlete) {
-      setAthlete(demoAthlete);
-      return;
-    }
-
-    const repository = getLocalAthleteRepository();
     if (!id) {
-      setAthlete(getAthlete(null));
+      setAthlete({ ...loadingAthlete, id: "" });
       return;
     }
-
+    const repository = getRemoteAthleteRepository();
     if (!repository) return;
 
     let active = true;
@@ -243,10 +134,10 @@ export function useSelectedAthlete(): Athlete {
   return athlete;
 }
 
-function getLocalAthleteRepository() {
-  if (typeof window === "undefined") return null;
-  localAthleteRepository ??= new LocalAthleteRepository();
-  return localAthleteRepository;
+function getRemoteAthleteRepository() {
+  const baseUrl = assessmentApiBaseUrl();
+  if (typeof window === "undefined" || !baseUrl || !getServerAccessToken()) return null;
+  return new HttpAthleteRepository(new ApiClient({ baseUrl, getAccessToken: getServerAccessToken }));
 }
 
 function toDisplayAthlete(record: AthleteRecord): Athlete {

@@ -14,13 +14,15 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .assessment_service import ConflictError, PayloadCipher, ResourceNotFoundError, list_assessments_for_athlete, require_owned_athlete, upsert_assessment
-from .athlete_service import create_athlete, get_athlete, list_athletes, synchronize_athlete, update_athlete
+from .assessment_service import ConflictError, PayloadCipher, ResourceNotFoundError, delete_test_result, get_test_history, require_owned_athlete, save_test_result
+from .athlete_service import create_athlete, delete_athlete, get_athlete, list_athletes, synchronize_athlete, update_athlete
 from .auth_service import (
+    authenticate_user,
     complete_oauth_callback,
     oauth_authorization_url,
     register_coach,
     request_mobile_otp,
+    update_last_login,
     verify_email,
     verify_mobile_otp,
 )
@@ -39,7 +41,7 @@ from .schemas import (
     TokenRequest,
     TokenResponse,
 )
-from .security import Principal, create_access_token, get_current_principal, require_permission, verify_password
+from .security import Principal, create_access_token, get_current_principal, require_permission
 
 
 def create_app(settings: Settings = None) -> FastAPI:
@@ -51,10 +53,8 @@ def create_app(settings: Settings = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-        """Initialize local schemas before serving non-production requests."""
-        # Local development is self-starting; production schema changes must run through Alembic migrations.
-        if active_settings.environment != "production":
-            database.create_schema()
+        """Ensure mapped tables exist before serving requests in every environment."""
+        database.create_schema()
         yield
 
     app = FastAPI(title="AI Athlete 360 API", version="0.1.0", lifespan=lifespan)
@@ -86,7 +86,7 @@ def create_app(settings: Settings = None) -> FastAPI:
         CORSMiddleware,
         allow_credentials=False,
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Correlation-ID"],
-        allow_methods=["GET", "POST", "PUT", "PATCH"],
+        allow_methods=["DELETE", "GET", "POST", "PUT", "PATCH"],
         allow_origins=active_settings.cors_origin_list,
     )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=active_settings.trusted_host_list)
@@ -113,17 +113,23 @@ def create_app(settings: Settings = None) -> FastAPI:
         """Return the lightweight liveness signal used by platform health checks."""
         return {"status": "ok"}
 
+    @app.get("/", include_in_schema=False)
+    def api_root():
+        """Send browser visits to the frontend rather than exposing an API-only 404 page."""
+        return RedirectResponse(active_settings.app_public_url)
+
     @app.post("/v1/auth/token", response_model=TokenResponse)
     def create_token(credentials: TokenRequest, session: Session = Depends(database_session(database))):
         """Authenticate a verified active user and return a short-lived bearer token."""
-        user = session.scalar(select(User).where(User.email == str(credentials.email).lower()))
-        if not user or not user.is_active or not verify_password(credentials.password, user.password_hash):
+        user = authenticate_user(session, str(credentials.email), credentials.password)
+        if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "invalid_credentials"})
         if not user.email_verified and not user.mobile_verified:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail={"code": "verification_required", "message": "Verify your email link or mobile OTP before signing in."},
             )
+        update_last_login(session, user)
         return token_response(user, active_settings)
 
     @app.post("/v1/auth/signup", status_code=status.HTTP_202_ACCEPTED)
@@ -156,12 +162,20 @@ def create_app(settings: Settings = None) -> FastAPI:
     def send_mobile_otp(request: MobileOtpRequest, session: Session = Depends(database_session(database))):
         """Request a mobile OTP without exposing whether the account details exist."""
         try:
-            request_mobile_otp(session, active_settings, str(request.email), request.mobile_number)
+            development_otp = request_mobile_otp(
+                session,
+                active_settings,
+                str(request.email),
+                request.mobile_number,
+            )
         except RuntimeError as error:
             raise configuration_error(str(error))
         except ValueError as error:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "invalid_mobile_number", "message": str(error)})
-        return {"message": "If the account details match, a verification code has been sent."}
+        response = {"message": "If the account details match, a verification code has been sent."}
+        if development_otp:
+            response["developmentOtp"] = development_otp
+        return response
 
     @app.post("/v1/auth/mobile-otp/verify", response_model=TokenResponse)
     def complete_mobile_otp(request: MobileOtpVerification, session: Session = Depends(database_session(database))):
@@ -225,7 +239,7 @@ def create_app(settings: Settings = None) -> FastAPI:
     ):
         """Create or update an owned encrypted assessment with request replay protection."""
         try:
-            saved, created = upsert_assessment(
+            saved, created = save_test_result(
                 session,
                 cipher,
                 principal,
@@ -320,6 +334,24 @@ def create_app(settings: Settings = None) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "athlete_not_found"})
         return Athlete.model_validate(athlete)
 
+    @app.delete("/v1/athletes/{athlete_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_owned_athlete(
+        athlete_id: str,
+        request: Request,
+        principal: Principal = Depends(require_permission("athlete:register")),
+        session: Session = Depends(database_session(database)),
+    ):
+        """Permanently delete one owned athlete together with its persisted assessment history."""
+        deleted = delete_athlete(
+            session,
+            principal,
+            athlete_id,
+            request.headers.get("X-Correlation-ID", "missing-correlation-id")[:120],
+        )
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "athlete_not_found"})
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     @app.put("/v1/athletes/{athlete_id}/sync", response_model=Athlete, status_code=status.HTTP_201_CREATED)
     def synchronize_owned_athlete(
         athlete_id: str,
@@ -364,8 +396,31 @@ def create_app(settings: Settings = None) -> FastAPI:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": error.code, "message": error.message})
         return [
             AssessmentAttempt.model_validate(item)
-            for item in list_assessments_for_athlete(session, cipher, athlete_id)
+            for item in get_test_history(session, cipher, athlete_id)
         ]
+
+    @app.delete(
+        "/v1/athletes/{athlete_id}/assessment-attempts/{attempt_id}",
+        status_code=status.HTTP_204_NO_CONTENT,
+    )
+    def delete_assessment(
+        athlete_id: str,
+        attempt_id: str,
+        request: Request,
+        principal: Principal = Depends(require_permission("assessment:perform")),
+        session: Session = Depends(database_session(database)),
+    ):
+        """Permanently delete one assessment attempt belonging to the caller's athlete."""
+        deleted = delete_test_result(
+            session,
+            principal,
+            athlete_id,
+            attempt_id,
+            request.headers.get("X-Correlation-ID", "missing-correlation-id")[:120],
+        )
+        if not deleted:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "assessment_not_found"})
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return app
 
@@ -377,6 +432,9 @@ def database_session(database: Database):
         session = database.session()
         try:
             yield session
+        except Exception:
+            session.rollback()
+            raise
         finally:
             session.close()
 

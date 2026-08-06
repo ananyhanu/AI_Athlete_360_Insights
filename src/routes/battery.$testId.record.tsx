@@ -7,6 +7,10 @@ import { VideoPreview } from "@/components/VideoPreview";
 import { useSelectedAthlete } from "@/lib/athletes";
 import { LocalCaptureRepository } from "@/lib/local-capture-repository";
 
+type TorchTrack = MediaStreamTrack & {
+  getCapabilities?: () => MediaTrackCapabilities & { torch?: boolean };
+};
+
 export const Route = createFileRoute("/battery/$testId/record")({
   head: () => ({
     meta: [
@@ -51,16 +55,16 @@ function RecordScreen() {
   const [front, setFront] = useState(false);
   const [flash, setFlash] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
 
   const calibrationComplete = calibration.framing && calibration.lighting && calibration.reference;
 
-  function attachPreview(element: HTMLVideoElement | null) {
-    video.current = element;
-    if (!element || !stream.current) return;
+  useEffect(() => {
+    if (!cameraReady || !stream.current || !video.current) return;
 
-    element.srcObject = stream.current;
-    void element.play().catch(() => undefined);
-  }
+    video.current.srcObject = stream.current;
+    void video.current.play().catch(() => undefined);
+  }, [cameraReady]);
 
   useEffect(() => {
     if (!recording) return;
@@ -90,6 +94,8 @@ function RecordScreen() {
     async function openCamera() {
       setCameraError(null);
       setCameraReady(false);
+      setFlash(false);
+      setTorchSupported(false);
 
       if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
         setCameraError("This browser does not support camera recording.");
@@ -112,6 +118,8 @@ function RecordScreen() {
         }
 
         stream.current = nextStream;
+  const track = nextStream.getVideoTracks()[0] as TorchTrack | undefined;
+  setTorchSupported(Boolean(!front && track?.getCapabilities?.().torch));
         if (video.current) {
           video.current.srcObject = nextStream;
           await video.current.play().catch(() => undefined);
@@ -122,6 +130,24 @@ function RecordScreen() {
       }
     }
   }, [cameraAttempt, front, recorded]);
+
+  async function toggleFlash() {
+    const track = stream.current?.getVideoTracks()[0] as TorchTrack | undefined;
+    if (!track?.getCapabilities?.().torch) {
+      setFlash(false);
+      toast.error("This camera does not support a browser-controlled torch.");
+      return;
+    }
+
+    const nextFlash = !flash;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: nextFlash }] } as MediaTrackConstraints);
+      setFlash(nextFlash);
+    } catch {
+      setFlash(false);
+      toast.error("The camera torch could not be changed.");
+    }
+  }
 
   function startRecording() {
     if (!stream.current || !calibrationComplete) return;
@@ -201,7 +227,7 @@ function RecordScreen() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden bg-foreground text-background">
+    <div className="relative flex min-h-[100svh] flex-col overflow-hidden bg-foreground text-background">
       <div className="pointer-events-none absolute -right-20 -top-20 size-80 rounded-full bg-primary/15 blur-3xl" />
       <header className="flex items-center gap-3 px-5 pt-6">
         <button
@@ -230,7 +256,7 @@ function RecordScreen() {
       <div className="relative mx-5 mt-5 flex-1 overflow-hidden rounded-3xl border border-primary/35 bg-background/5 shadow-elevated">
         {cameraReady ? (
           <video
-            ref={attachPreview}
+            ref={video}
             autoPlay
             muted
             playsInline
@@ -291,15 +317,19 @@ function RecordScreen() {
       <div className="px-5 pb-10 pt-6">
         <div className="grid grid-cols-3 items-center">
           <button
-            onClick={() => setFlash((f) => !f)}
-            disabled
-            title="Torch control depends on device hardware and is not available in this browser capture mode."
-            className="flex flex-col items-center gap-1 text-xs font-semibold text-background/80"
+            onClick={() => void toggleFlash()}
+            disabled={!cameraReady || !torchSupported || recording}
+            title={
+              torchSupported
+                ? "Turn the rear camera torch on or off."
+                : "This camera or browser does not support a controllable torch."
+            }
+            className="flex flex-col items-center gap-1 text-xs font-semibold text-background/80 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <span className="grid size-12 place-items-center rounded-full bg-background/15">
               {flash ? <Zap className="size-5" /> : <ZapOff className="size-5" />}
             </span>
-            Flash {flash ? "On" : "Off"}
+            {torchSupported ? `Flash ${flash ? "On" : "Off"}` : "Flash Unavailable"}
           </button>
 
           <button

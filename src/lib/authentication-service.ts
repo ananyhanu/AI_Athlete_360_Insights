@@ -63,7 +63,7 @@ export async function requestMobileOtp({
   mobileNumber: string;
 }) {
   const client = new ApiClient(fetchFn ? { baseUrl, fetchFn } : { baseUrl });
-  return client.request<{ message: string }>("/v1/auth/mobile-otp", {
+  return client.request<{ developmentOtp?: string; message: string }>("/v1/auth/mobile-otp", {
     body: { email, mobileNumber },
     method: "POST",
   });

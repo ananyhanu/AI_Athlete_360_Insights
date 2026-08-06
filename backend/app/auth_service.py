@@ -13,12 +13,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from .config import Settings
+from .database import commit_transaction
 from .models import AuthChallenge, User, utc_now
-from .security import create_access_token, hash_password
+from .security import create_access_token, hash_password, verify_password
 
 # The stored challenge purpose determines the allowed verification flow for a hashed secret.
 ChallengePurpose = Literal["email-verification", "mobile-otp", "oauth-state"]
@@ -33,12 +34,70 @@ def normalize_mobile_number(value: str) -> str:
     return normalized
 
 
+def get_user_by_email(session: Session, email: str) -> User | None:
+    """Return the user with a normalized email address, when one exists."""
+    return session.scalar(select(User).where(User.email == email.strip().lower()))
+
+
+def get_user_by_username(session: Session, username: str) -> User | None:
+    """Return the user with the supplied case-insensitive username, when one exists."""
+    return session.scalar(select(User).where(User.username == username.strip().lower()))
+
+
+def create_user(
+    session: Session,
+    *,
+    email: str,
+    password: str,
+    mobile_number: str | None,
+    roles: list[str],
+    username: str | None = None,
+    email_verified: bool = False,
+    mobile_verified: bool = False,
+) -> User:
+    """Add a secure, active user record without committing the surrounding transaction."""
+    normalized_email = email.strip().lower()
+    normalized_username = (username or normalized_email).strip().lower()
+    if get_user_by_email(session, normalized_email) or get_user_by_username(session, normalized_username):
+        raise ValueError("A user with this email or username already exists.")
+    user = User(
+        email=normalized_email,
+        username=normalized_username,
+        mobile_number=mobile_number,
+        email_verified=email_verified,
+        mobile_verified=mobile_verified,
+        hashed_password=hash_password(password),
+        roles_json=json.dumps(roles),
+    )
+    session.add(user)
+    session.flush()
+    return user
+
+
+def authenticate_user(session: Session, identifier: str, password: str) -> User | None:
+    """Authenticate an active user by email or username without modifying failed logins."""
+    normalized_identifier = identifier.strip().lower()
+    user = session.scalar(
+        select(User).where(or_(User.email == normalized_identifier, User.username == normalized_identifier))
+    )
+    if not user or not user.is_active or not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+
+def update_last_login(session: Session, user: User) -> User:
+    """Persist the timestamp for a successful, fully verified sign-in."""
+    user.last_login = utc_now()
+    commit_transaction(session, user)
+    return user
+
+
 def register_coach(session: Session, settings: Settings, email: str, password: str, mobile_number: str) -> None:
     """Create or refresh an unverified coach registration, then send an email challenge."""
     require_email_delivery(settings)
     normalized_email = email.lower()
     normalized_mobile = normalize_mobile_number(mobile_number)
-    user = session.scalar(select(User).where(User.email == normalized_email))
+    user = get_user_by_email(session, normalized_email)
 
     if user and (user.email_verified or user.mobile_verified):
         # Keep the response neutral so this endpoint does not become an account-discovery oracle.
@@ -46,21 +105,20 @@ def register_coach(session: Session, settings: Settings, email: str, password: s
 
     if not user:
         # New accounts start unverified and receive only the coach role required by this flow.
-        user = User(
+        user = create_user(
+            session,
             email=normalized_email,
             mobile_number=normalized_mobile,
-            password_hash=hash_password(password),
-            roles_json=json.dumps(["coach"]),
+            password=password,
+            roles=["coach"],
         )
-        session.add(user)
-        session.flush()
     else:
         user.mobile_number = normalized_mobile
-        user.password_hash = hash_password(password)
+        user.hashed_password = hash_password(password)
         user.roles_json = json.dumps(["coach"])
 
-    token = issue_challenge(session, "email-verification", user, normalized_email, 60)
-    session.commit()
+    token = issue_challenge(session, "email-verification", user, secrets.token_urlsafe(32), 60)
+    commit_transaction(session, user)
     send_email_verification(settings, normalized_email, token)
 
 
@@ -73,37 +131,40 @@ def verify_email(session: Session, token: str) -> User:
     if not user:
         raise ValueError("The verification link is invalid or has expired.")
     user.email_verified = True
-    session.commit()
+    commit_transaction(session, user)
     return user
 
 
-def request_mobile_otp(session: Session, settings: Settings, email: str, mobile_number: str) -> None:
+def request_mobile_otp(session: Session, settings: Settings, email: str, mobile_number: str) -> str | None:
     """Issue and deliver a short-lived OTP only when email and mobile details match an account."""
     require_mobile_delivery(settings)
     normalized_email = email.lower()
     normalized_mobile = normalize_mobile_number(mobile_number)
-    user = session.scalar(select(User).where(User.email == normalized_email))
+    user = get_user_by_email(session, normalized_email)
     if not user or user.mobile_number != normalized_mobile:
         # Preserve account privacy by responding as though the request was accepted.
-        return
+        return None
 
     # Generate digits with the cryptographically secure secrets module rather than a predictable PRNG.
     otp = "".join(str(secrets.randbelow(10)) for _ in range(6))
     issue_challenge(session, "mobile-otp", user, otp, 10, target=normalized_mobile)
-    session.commit()
+    commit_transaction(session)
     send_mobile_otp(settings, normalized_mobile, otp)
+    if settings.environment == "development" and settings.mobile_otp_delivery_mode == "console":
+        return otp
+    return None
 
 
 def verify_mobile_otp(session: Session, settings: Settings, email: str, otp: str) -> tuple[str, User]:
     """Consume a matching OTP, mark mobile verification, and issue a bearer token."""
-    user = session.scalar(select(User).where(User.email == email.lower()))
+    user = get_user_by_email(session, email)
     if not user:
         raise ValueError("The verification code is invalid or has expired.")
     challenge = consume_challenge(session, "mobile-otp", otp, target=user.mobile_number)
     if challenge.user_id != user.id:
         raise ValueError("The verification code is invalid or has expired.")
     user.mobile_verified = True
-    session.commit()
+    update_last_login(session, user)
     return create_access_token(user, settings), user
 
 
@@ -112,7 +173,7 @@ def oauth_authorization_url(session: Session, settings: Settings, provider: Lite
     configuration = oauth_configuration(settings, provider)
     # The state value binds the callback to the provider and expires after ten minutes.
     state = issue_challenge(session, "oauth-state", None, secrets.token_urlsafe(32), 10, target=provider)
-    session.commit()
+    commit_transaction(session)
     query = urlencode(
         {
             "client_id": configuration["client_id"],
@@ -149,22 +210,21 @@ def complete_oauth_callback(
         },
     )
     email = oauth_email(settings, provider, token_payload)
-    user = session.scalar(select(User).where(User.email == email))
+    user = get_user_by_email(session, email)
     if not user:
         # OAuth accounts use an unguessable unusable password because authentication stays with the provider.
-        user = User(
+        user = create_user(
+            session,
             email=email,
             email_verified=True,
             mobile_number=None,
-            mobile_verified=False,
-            password_hash=hash_password(secrets.token_urlsafe(32)),
-            roles_json=json.dumps(["coach"]),
+            password=secrets.token_urlsafe(32),
+            roles=["coach"],
         )
-        session.add(user)
     else:
         user.email_verified = True
         user.is_active = True
-    session.commit()
+    update_last_login(session, user)
     return create_access_token(user, settings), user
 
 

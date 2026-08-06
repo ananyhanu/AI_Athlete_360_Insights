@@ -20,23 +20,19 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
-  CloudUpload,
   Clock,
   Dumbbell,
   Gauge,
   History,
-  Loader2,
   RotateCcw,
   UserPlus,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { initials, useSelectedAthlete } from "@/lib/athletes";
 import { batteryTestCount } from "@/lib/battery-tests";
 import { useAssessmentSummary } from "@/lib/assessment-summary";
-import { syncConfiguredAthletes } from "@/lib/athlete-sync-runtime";
-import { assessmentApiBaseUrl, syncConfiguredAssessments } from "@/lib/assessment-sync-runtime";
 import { hasSessionPermission, usePrototypeSession } from "@/lib/prototype-session";
 
 export const Route = createFileRoute("/dashboard")({
@@ -74,9 +70,6 @@ function Dashboard() {
   const athlete = useSelectedAthlete();
   const session = usePrototypeSession();
   const { loading, summary } = useAssessmentSummary(athlete.id);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const syncApiBaseUrl = assessmentApiBaseUrl();
   const progress = Math.round((summary.accepted / summary.total) * 100);
   const statusData = [
     { name: "Accepted", value: summary.accepted },
@@ -96,38 +89,6 @@ function Dashboard() {
     { label: "Accepted", value: String(summary.accepted), icon: CheckCircle2, tone: "text-success" },
     { label: "Retest", value: String(summary.needsRetest), icon: RotateCcw, tone: "text-destructive" },
   ];
-
-  async function syncPendingAssessments() {
-    setSyncing(true);
-    setSyncMessage(null);
-    try {
-      const athleteResult = await syncConfiguredAthletes();
-      if (!athleteResult.configured) {
-        setSyncMessage(
-          athleteResult.reason === "authentication-required"
-            ? "Sign in to the assessment service before synchronizing records."
-            : "Configure VITE_ASSESSMENT_API_URL before synchronizing assessment records.",
-        );
-        return;
-      }
-      const assessmentResult = await syncConfiguredAssessments();
-      if (!assessmentResult.configured) {
-        setSyncMessage("Sign in to the assessment service before synchronizing records.");
-      } else if (athleteResult.failed || assessmentResult.failed) {
-        setSyncMessage(
-          `${athleteResult.synced} athlete(s) and ${assessmentResult.synced} assessment record(s) synchronized; ${athleteResult.failed + assessmentResult.failed} will retry when the service is available.`,
-        );
-      } else {
-        const synced = athleteResult.synced + assessmentResult.synced;
-        setSyncMessage(synced ? `${synced} encrypted record(s) synchronized.` : "No pending records.");
-      }
-    } catch (error) {
-      console.error(error);
-      setSyncMessage("Synchronization could not be started. Pending records remain encrypted on this device.");
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   return (
     <AppShell wide title="Coach Dashboard" subtitle={athlete.coach}>
@@ -179,20 +140,12 @@ function Dashboard() {
         <section className="fitness-panel p-5 lg:col-span-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Secure sync</p>
-              <p className="mt-1 text-sm font-semibold">{summary.syncPending} pending record{summary.syncPending === 1 ? "" : "s"}</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Database persistence</p>
+              <p className="mt-1 text-sm font-semibold">Assessment records are saved immediately</p>
             </div>
-            <CloudUpload className="size-5 text-primary" />
+            <CheckCircle2 className="size-5 text-success" />
           </div>
-          <button
-            onClick={() => void syncPendingAssessments()}
-            disabled={syncing || !syncApiBaseUrl || summary.syncPending === 0}
-            className="action-lift mt-6 flex h-11 w-full items-center justify-center gap-2 bg-foreground px-4 text-sm font-semibold text-background hover:bg-primary hover:text-primary-foreground hover:action-lift-hover disabled:cursor-not-allowed disabled:opacity-55"
-          >
-            {syncing ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" />}
-            {syncing ? "Synchronizing" : !syncApiBaseUrl ? "Remote sync unavailable" : summary.syncPending ? "Sync pending records" : "All records synchronized"}
-          </button>
-          <p className="mt-3 text-xs text-muted-foreground">{syncMessage ?? (!syncApiBaseUrl ? "Connect an assessment API to synchronize." : "Records remain encrypted before transfer.")}</p>
+          <p className="mt-6 text-xs text-muted-foreground">Profiles and completed assessment attempts are stored in the server database for the signed-in coach.</p>
         </section>
 
         {stats.map(({ label, value, icon: Icon, tone }) => (

@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Activity, ArrowLeft, BarChart3, ClipboardList, LayoutDashboard, Settings, Wifi, WifiOff } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
-import { useAssessmentAutoSync } from "@/hooks/use-assessment-auto-sync";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { usePrototypeSession } from "@/lib/prototype-session";
 
@@ -25,7 +24,6 @@ export function AppShell({ title, subtitle, backTo, wide = false, children }: Pr
   const navigate = useNavigate();
   const session = usePrototypeSession();
   const online = useOnlineStatus();
-  useAssessmentAutoSync(Boolean(session));
 
   useEffect(() => {
     if (session === null) navigate({ to: "/login", replace: true });
