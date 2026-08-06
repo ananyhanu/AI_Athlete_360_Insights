@@ -26,7 +26,7 @@ function Processing() {
   }, [navigate]);
 
   return (
-    <div className="bg-gradient-primary flex min-h-screen flex-col items-center justify-center px-8 text-center text-primary-foreground">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-foreground px-8 text-center text-primary-foreground">
       <div className="relative grid size-32 place-items-center">
         <span className="absolute inset-0 animate-ping rounded-full bg-primary-foreground/20" />
         <span className="absolute inset-3 rounded-full border-4 border-primary-foreground/25 border-t-primary-foreground animate-spin" />

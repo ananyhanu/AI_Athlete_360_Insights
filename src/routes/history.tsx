@@ -76,7 +76,7 @@ function HistoryScreen() {
 
   return (
     <AppShell title="Reports & History" subtitle={athlete.name} backTo="/dashboard">
-      <section className="rounded-2xl bg-card p-5 shadow-card">
+      <section className="fitness-panel fitness-enter p-5">
         <label className="flex h-12 items-center gap-3 rounded-2xl bg-secondary px-4">
           <Search className="size-4 shrink-0 text-muted-foreground" />
           <input
@@ -110,7 +110,7 @@ function HistoryScreen() {
 
       <div className="mt-3 space-y-3">
         {visible.map((e) => (
-          <article key={e.attempt.id} className="rounded-2xl bg-card p-5 shadow-card">
+          <article key={e.attempt.id} className="fitness-panel action-lift p-5 hover:action-lift-hover">
             <div className="flex items-center gap-4">
               <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-secondary text-primary">
                 <CalendarDays className="size-5" />
@@ -128,14 +128,14 @@ function HistoryScreen() {
               <button
                 onClick={downloadReport}
                 disabled={generating || !summary.reportReady}
-                className="flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground transition-transform active:scale-[0.97] disabled:opacity-60"
+                className="action-lift flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground hover:action-lift-hover disabled:opacity-60"
               >
                 <Download className="size-4 text-primary" />
                 Download Again
               </button>
               <button
                 onClick={share.show}
-                className="flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground transition-transform active:scale-[0.97]"
+                className="action-lift flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground hover:action-lift-hover"
               >
                 <Share2 className="size-4 text-primary" />
                 Share Again
@@ -144,7 +144,7 @@ function HistoryScreen() {
                 to="/battery/$testId/result"
                 params={{ testId: e.test.id }}
                 search={{ attemptId: e.attempt.id, measurement: undefined }}
-                className="flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground transition-transform active:scale-[0.97]"
+                className="action-lift flex flex-col items-center gap-1 rounded-xl bg-secondary py-3 text-[11px] font-semibold text-foreground hover:action-lift-hover"
               >
                 <Eye className="size-4 text-primary" />
                 View Report
@@ -154,7 +154,7 @@ function HistoryScreen() {
         ))}
 
         {visible.length === 0 ? (
-          <p className="rounded-2xl bg-card p-6 text-center text-sm text-muted-foreground shadow-card">
+          <p className="glass-surface rounded-xl p-6 text-center text-sm text-muted-foreground">
             {loading ? "Loading encrypted assessment history..." : "No captured assessments match your search."}
           </p>
         ) : null}

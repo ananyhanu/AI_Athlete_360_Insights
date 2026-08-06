@@ -7,14 +7,17 @@ import { generateReportPdf, type ReportPdf } from "@/lib/report-pdf";
 
 /** UI-only PDF generation flow: generate -> "Download Complete" -> View / Share. */
 export function useReportDownload() {
+  // Keep generation state separate from the completed PDF so controls can prevent duplicate work.
   const [generating, setGenerating] = useState(false);
   const [pdf, setPdf] = useState<ReportPdf | null>(null);
 
   async function download(athlete: Athlete, summary?: AssessmentSummary) {
+    // A second click while jsPDF is loading would otherwise create duplicate blob URLs and downloads.
     if (generating) return;
     setGenerating(true);
     try {
       const result = await generateReportPdf(athlete, summary);
+      // Use an ephemeral anchor so the browser handles the blob download without a server round trip.
       const a = document.createElement("a");
       a.href = result.url;
       a.download = result.fileName;
@@ -39,6 +42,7 @@ export function DownloadCompleteSheet({
   onClose: () => void;
   onShare: () => void;
 }) {
+  // The sheet stays unmounted until a PDF exists, avoiding an empty modal in the document tree.
   if (!pdf) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -83,6 +87,7 @@ export function DownloadCompleteSheet({
 }
 
 export function GeneratingLabel() {
+  // Shared compact loading content for report actions that are waiting on the lazy jsPDF import.
   return (
     <>
       <Loader2 className="size-5 animate-spin" />

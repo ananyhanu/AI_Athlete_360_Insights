@@ -1,4 +1,5 @@
 import type { BatteryTest } from "./battery-tests";
+import { aiMeasurementCapabilities } from "./battery-tests";
 import type { AssessmentEvaluation } from "./assessment-domain";
 import {
   coachPerformanceLevelForScore,
@@ -20,7 +21,12 @@ export type AiMeasurementOutcome =
   | { estimate: AiMeasurementEstimate; status: "estimated" }
   | { reason: string; status: "unavailable" };
 
-const lowerIsBetterTests = new Set(["30m-sprint", "4x10-shuttle-run"]);
+const protocolMeasurementReasons: Record<string, string> = {
+  "30m-sprint": "30m Sprint scoring requires verified start and finish lines with an approved timing method; confirm the time with the coach.",
+  "4x10-shuttle-run": "4x10m Shuttle Run scoring requires verified 10m turn lines with an approved timing method; confirm the time with the coach.",
+  "sit-ups": "Sit-Up scoring requires the athlete's age-appropriate 30-second or 45-second protocol timer; confirm the repetition count with the coach.",
+  "endurance-run": "Endurance Run scoring requires the complete fixed-course time for 800m or 1.6km; confirm the stopwatch result with the coach.",
+};
 
 export function evaluateManualRangeMeasurement(
   test: BatteryTest,
@@ -65,6 +71,15 @@ export function estimateAiMeasurement(
     };
   }
 
+  // Pose quality alone cannot establish course length, start/finish lines, or age-specific timing.
+  // Keep those tests unscored until their required protocol evidence is available to the application.
+  if (aiMeasurementCapabilities[test.id]?.current === "manual-only") {
+    return {
+      reason: protocolMeasurementReasons[test.id] ?? "This assessment requires a coach-verified measurement.",
+      status: "unavailable",
+    };
+  }
+
   const derived = deriveMeasurementValue(test.id, motion, referenceHeightCm);
   if (!derived) {
     return {
@@ -76,7 +91,7 @@ export function estimateAiMeasurement(
   const value = roundToStep(derived.value, range.step);
   const inRange = value >= range.min && value <= range.max;
   const score = inRange
-    ? rangeNormalizedScore(value, range.min, range.max, lowerIsBetterTests.has(test.id))
+    ? rangeNormalizedScore(value, range.min, range.max)
     : 0;
   const level = coachPerformanceLevelForScore(score) ?? "Needs Improvement";
   const measurement = { label: test.name, unit: test.unit, value };
@@ -127,25 +142,13 @@ function deriveMeasurementValue(
         description: "wrist trajectory normalized to the athlete height (uncalibrated)",
         value: motion.wristTravelBodyHeights * heightMetres * 1.2,
       };
-    case "sit-ups":
-      return {
-        description: "detected torso movement cycles extrapolated to 60 seconds",
-        value: ((motion.torsoMovementCycles ?? 0) * 60) / motion.observedDurationSeconds,
-      };
-    case "endurance-run":
-      return {
-        description: "pose travel proxy normalized to the athlete height (uncalibrated)",
-        value: motion.horizontalTravelBodyHeights * heightMetres * 90,
-      };
     default:
       return null;
   }
 }
 
-function rangeNormalizedScore(value: number, minimum: number, maximum: number, lowerIsBetter: boolean) {
-  const position = lowerIsBetter
-    ? (maximum - value) / (maximum - minimum)
-    : (value - minimum) / (maximum - minimum);
+function rangeNormalizedScore(value: number, minimum: number, maximum: number) {
+  const position = (value - minimum) / (maximum - minimum);
   return Math.round(15 + Math.max(0, Math.min(1, position)) * 85);
 }
 

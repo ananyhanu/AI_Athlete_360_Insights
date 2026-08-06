@@ -3,7 +3,6 @@ import { z } from "zod";
 import { authenticationRequiredEvent } from "./authentication-events";
 import { appRoleSchema, hasPermission, type AppRole, type Permission } from "./authorization";
 
-const sessionStorageKey = "aa360.prototype-session";
 const authenticatedSessionStorageKey = "aa360.authenticated-session";
 export const prototypeSessionChangedEvent = "aa360:prototype-session-changed";
 
@@ -20,21 +19,6 @@ const authenticatedSessionSchema = prototypeSessionSchema.extend({
 export type PrototypeSession = z.infer<typeof prototypeSessionSchema>;
 export type AuthenticatedSession = z.infer<typeof authenticatedSessionSchema>;
 export type AppSession = PrototypeSession | AuthenticatedSession;
-
-export function startPrototypeCoachSession(email: string): PrototypeSession {
-  const normalizedEmail = z.string().trim().email().max(254).parse(email);
-  const session = prototypeSessionSchema.parse({
-    displayName: displayNameForEmail(normalizedEmail),
-    email: normalizedEmail,
-    roles: ["coach"],
-  });
-
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
-    window.dispatchEvent(new CustomEvent(prototypeSessionChangedEvent));
-  }
-  return session;
-}
 
 export function startAuthenticatedSession({
   accessToken,
@@ -62,7 +46,6 @@ export function startAuthenticatedSession({
 
 export function clearPrototypeSession() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(sessionStorageKey);
   window.sessionStorage.removeItem(authenticatedSessionStorageKey);
   window.dispatchEvent(new CustomEvent(prototypeSessionChangedEvent));
 }
@@ -73,7 +56,7 @@ export function getPrototypeSession(): AppSession | null {
   const authenticated = parseAuthenticatedSession(
     window.sessionStorage.getItem(authenticatedSessionStorageKey),
   );
-  return authenticated ?? parsePrototypeSession(window.localStorage.getItem(sessionStorageKey));
+  return authenticated;
 }
 
 export function parsePrototypeSession(serialized: string | null): PrototypeSession | null {

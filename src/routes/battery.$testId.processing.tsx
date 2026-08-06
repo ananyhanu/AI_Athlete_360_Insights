@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, useParams, useSearch } from "@tanstack/re
 import { useEffect, useState } from "react";
 import { useSelectedAthlete } from "@/lib/athletes";
 import { getBatteryTest } from "@/lib/battery-tests";
-import { LocalAssessmentRepository } from "@/lib/local-assessment-repository";
+import { PersistentAssessmentRepository } from "@/lib/persistent-assessment-repository";
 import { LocalCaptureRepository } from "@/lib/local-capture-repository";
 import { analyzeVideoPose } from "@/lib/mediapipe-pose-analysis";
 import { evaluateProvisionalCapture } from "@/lib/provisional-evaluator";
@@ -62,7 +62,7 @@ function AiProcessing() {
     }
 
     let active = true;
-    const assessmentRepository = new LocalAssessmentRepository();
+    const assessmentRepository = new PersistentAssessmentRepository(athlete.id);
     const captureRepository = new LocalCaptureRepository();
     void (async () => {
       try {
@@ -96,9 +96,8 @@ function AiProcessing() {
         });
       } catch (error) {
         console.error(error);
-        if (active) setSaveError("The assessment attempt could not be saved securely on this device.");
+        if (active) setSaveError("The assessment attempt could not be saved to the assessment database.");
       } finally {
-        assessmentRepository.close();
         captureRepository.close();
       }
     })();
@@ -112,7 +111,7 @@ function AiProcessing() {
   const remaining = ((steps.length - step - 1) * STEP_MS) / 1000;
 
   return (
-    <div className="bg-gradient-primary flex min-h-screen flex-col items-center justify-center px-8 py-12 text-center text-primary-foreground">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-foreground px-8 py-12 text-center text-primary-foreground">
       <div className="relative grid size-28 place-items-center">
         <span className="absolute inset-0 animate-ping rounded-full bg-primary-foreground/20" />
         <span className="absolute inset-3 animate-spin rounded-full border-4 border-primary-foreground/25 border-t-primary-foreground" />

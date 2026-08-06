@@ -32,6 +32,7 @@ export function evaluateProvisionalCapture(
 
   if (poseAnalysis?.status === "analyzed") {
     const { evidence } = poseAnalysis;
+    // Reject poor landmarks before estimating a metric; a plausible-looking value is not useful from an invalid capture.
     if (!poseQualityIsUsable(evidence)) {
       return assessmentEvaluationSchema.parse({
         level: null,
@@ -66,6 +67,7 @@ export function evaluateProvisionalCapture(
       });
     }
 
+    // Preserve valid pose evidence for review even when this test's official protocol requires manual measurement.
     return assessmentEvaluationSchema.parse({
       level: "Not scored",
       measurement: null,

@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -22,23 +21,28 @@ export const Route = createFileRoute("/")({
 
 function Splash() {
   return (
-    <div className="bg-gradient-primary flex min-h-screen flex-col items-center justify-center px-6 text-center text-primary-foreground">
-      <div className="grid size-28 place-items-center rounded-3xl bg-primary-foreground/15 shadow-elevated">
-        <Activity className="size-14" strokeWidth={2.5} />
+    <div
+      className="relative flex min-h-screen flex-col justify-end overflow-hidden bg-foreground bg-cover bg-center px-6 py-10 text-primary-foreground"
+      style={{ backgroundImage: "url('/images/login-page-run-athlete.png')" }}
+    >
+      <div className="absolute inset-0 bg-gradient-to-t from-foreground via-foreground/45 to-foreground/5" />
+      <div className="relative mx-auto w-full max-w-md text-center">
+        <img
+          src="/images/ai-athlete-logo.png"
+          alt="AI Athlete Assessment logo"
+          className="mx-auto size-12 rounded-md object-cover shadow-elevated"
+        />
+        <h1 className="mt-4 text-3xl font-extrabold">AI Athlete 360</h1>
+        <p className="mt-2 text-sm text-primary-foreground/80">
+          AI-powered battery fitness assessment
+        </p>
+        <Link
+          to="/login"
+          className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-md bg-primary text-base font-semibold text-primary-foreground shadow-elevated transition-transform active:scale-[0.98]"
+        >
+          Get started
+        </Link>
       </div>
-      <h1 className="mt-8 text-4xl font-extrabold">AI Athlete 360</h1>
-      <p className="mt-3 max-w-xs text-base text-primary-foreground/85">
-        AI Powered Battery Fitness Assessment
-      </p>
-      <Link
-        to="/login"
-        className="mt-12 inline-flex h-14 w-full max-w-xs items-center justify-center rounded-2xl bg-primary-foreground text-base font-semibold text-primary shadow-elevated transition-transform active:scale-[0.98]"
-      >
-        Get Started
-      </Link>
-      <p className="mt-8 text-xs uppercase tracking-[0.2em] text-primary-foreground/60">
-        Sports Assessment Platform
-      </p>
     </div>
   );
 }

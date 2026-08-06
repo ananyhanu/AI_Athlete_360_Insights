@@ -2,6 +2,7 @@ import { Bluetooth, FileText, Link2, Mail, MessageCircle, MessageSquare, Share2,
 import { useState } from "react";
 import { toast } from "sonner";
 
+// These choices model a native share picker; they intentionally do not send athlete data yet.
 const options = [
   { label: "WhatsApp", icon: MessageCircle },
   { label: "Email", icon: Mail },
@@ -22,6 +23,7 @@ export function ShareSheet({
   onClose: () => void;
   title?: string;
 }) {
+  // Do not render the backdrop or focusable sheet controls while sharing is inactive.
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -49,6 +51,7 @@ export function ShareSheet({
             <button
               key={label}
               onClick={() => {
+                // This is a visible prototype acknowledgement, not an actual OS or network share operation.
                 toast.success(`Shared via ${label} (demo)`);
                 onClose();
               }}
@@ -73,6 +76,7 @@ export function ShareSheet({
 }
 
 export function useShareSheet() {
+  // Centralize the open/close state so report screens can use a small, consistent modal API.
   const [open, setOpen] = useState(false);
   return { open, show: () => setOpen(true), hide: () => setOpen(false) };
 }

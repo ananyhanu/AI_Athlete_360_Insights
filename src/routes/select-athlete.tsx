@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, UserPlus, Users } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { getSelectedAthleteId, initials, setSelectedAthleteId, useAthletes } from "@/lib/athletes";
-import { assessmentMeta } from "@/lib/battery-tests";
+import { usePrototypeSession } from "@/lib/prototype-session";
 
 export const Route = createFileRoute("/select-athlete")({
   head: () => ({
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/select-athlete")({
 
 function SelectAthlete() {
   const navigate = useNavigate();
+  const session = usePrototypeSession();
   const athletes = useAthletes();
   const [language, setLanguage] = useState("en");
   const [query, setQuery] = useState("");
@@ -59,7 +60,7 @@ function SelectAthlete() {
         <div className="flex items-center gap-3 text-sm">
           <Users className="size-4 shrink-0 text-primary" />
           <span className="text-muted-foreground">Coach</span>
-          <span className="ml-auto font-semibold">{assessmentMeta.coachName}</span>
+          <span className="ml-auto font-semibold">{session?.displayName ?? "Coach"}</span>
         </div>
         <label className="mt-4 block">
           <span className="text-xs font-medium text-muted-foreground">Language</span>
@@ -97,8 +98,12 @@ function SelectAthlete() {
               }`}
             >
               <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
-                <span className="bg-gradient-primary grid size-12 shrink-0 place-items-center rounded-2xl font-display text-sm font-bold text-primary-foreground">
-                  {initials(a.name)}
+                <span className="bg-gradient-primary grid size-12 shrink-0 place-items-center overflow-hidden rounded-2xl font-display text-sm font-bold text-primary-foreground">
+                  {a.profilePhotoDataUrl ? (
+                    <img src={a.profilePhotoDataUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    initials(a.name)
+                  )}
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{a.name}</span>

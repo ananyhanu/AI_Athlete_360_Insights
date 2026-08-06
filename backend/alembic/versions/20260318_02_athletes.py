@@ -11,6 +11,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add encrypted athlete records, ownership, and athlete-specific idempotency storage."""
     op.create_table(
         "athletes",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -41,6 +42,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove athlete tables and indexes in reverse dependency order."""
     op.drop_table("athlete_idempotency_records")
     op.drop_index("ix_athletes_owner_id", table_name="athletes")
     op.drop_index("ix_athletes_athlete_id", table_name="athletes")

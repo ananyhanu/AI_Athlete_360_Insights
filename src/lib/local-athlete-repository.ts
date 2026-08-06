@@ -56,6 +56,7 @@ export class LocalAthleteRepository implements AthleteRepository {
   async create(draft: unknown, _idempotencyKey: string): Promise<AthleteRecord> {
     const parsedDraft = athleteDraftSchema.parse(draft);
 
+    // Do not allocate an identifier or persist an encrypted record before privacy consent is granted.
     if (parsedDraft.consentStatus !== "granted") throw new ConsentRequiredError();
 
     const id = this.createId();
@@ -96,6 +97,7 @@ export class LocalAthleteRepository implements AthleteRepository {
       if (!stored) throw new VersionConflictError();
 
       const current = await this.decrypt(stored);
+      // The version check provides optimistic concurrency for two tabs or offline sync processes.
       if (current.version !== update.version) throw new VersionConflictError();
 
       const athlete = athleteRecordSchema.parse({
@@ -146,6 +148,7 @@ class IndexedDbStorageKeyProvider implements StorageKeyProvider {
     const stored = await this.database.keys.get("athlete-data-key");
     if (stored) return stored.key;
 
+    // Persist the non-extractable CryptoKey itself, never a serialized secret or passphrase.
     const key = await createStorageKey();
     await this.database.keys.put({ id: "athlete-data-key", key });
     return key;

@@ -41,6 +41,15 @@ export const athleteDraftSchema = z.object({
   emergencyContact: guardianSchema.nullable(),
   address: athleteAddressSchema,
   institutionName: z.string().trim().min(1).max(160),
+  profilePhotoDataUrl: z
+    .string()
+    .regex(
+      /^data:image\/(jpeg|png|webp);base64,/,
+      "Profile photo must be a JPEG, PNG, or WebP image.",
+    )
+    .max(3_000_000)
+    .nullable()
+    .optional(),
   sport: z.string().trim().min(1).max(80),
   discipline: z.string().trim().min(1).max(80),
   ageCategory: z.string().trim().min(1).max(80),

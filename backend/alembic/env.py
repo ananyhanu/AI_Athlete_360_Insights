@@ -1,3 +1,5 @@
+"""Alembic environment that binds migration commands to the configured application database."""
+
 from logging.config import fileConfig
 
 from alembic import context
@@ -5,19 +7,23 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config import Settings
 from app.database import Base
+# Import mapped models so Base.metadata includes every table when Alembic evaluates migrations.
 from app import models  # noqa: F401
 
+# Alembic supplies this configuration object from alembic.ini at command runtime.
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Reuse application configuration so migrations target the same database as the API.
 settings = Settings()
 config.set_main_option("sqlalchemy.url", settings.database_url)
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
+    """Render SQL migration operations without opening a database connection."""
     context.configure(
         url=settings.database_url,
         target_metadata=target_metadata,
@@ -30,6 +36,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """Connect to the configured database and execute migrations inside transactions."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -44,6 +51,7 @@ def run_migrations_online() -> None:
 
 
 if context.is_offline_mode():
+    # Alembic selects offline mode when generating SQL for review or deployment tooling.
     run_migrations_offline()
 else:
     run_migrations_online()

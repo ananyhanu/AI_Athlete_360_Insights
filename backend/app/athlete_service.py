@@ -1,12 +1,21 @@
+"""Encrypted athlete-profile persistence with ownership, versioning, sync, and audit rules."""
+
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .assessment_service import ConflictError, PayloadCipher, canonical_json, payload_hash
-from .models import AthleteIdempotencyRecord, AthleteRecord as AthleteRecordModel, AuditEvent
+from .database import commit_transaction
+from .models import (
+    AssessmentAttemptRecord,
+    AthleteIdempotencyRecord,
+    AthleteRecord as AthleteRecordModel,
+    AuditEvent,
+    IdempotencyRecord,
+)
 from .schemas import Athlete, AthleteDraft, AthleteUpdate
 from .security import Principal
 
@@ -19,11 +28,14 @@ def create_athlete(
     idempotency_key: str,
     correlation_id: str,
 ) -> Tuple[Dict[str, Any], bool]:
+    """Create an owned encrypted athlete profile and make duplicate retries replay safely."""
+    # Validate the externally supplied draft before adding server-owned identity metadata.
     request_payload = draft.model_dump(mode="json", by_alias=True)
     request_hash = payload_hash(request_payload)
     scoped_key = "%s:%s" % (principal.user_id, idempotency_key)
     repeated = session.get(AthleteIdempotencyRecord, scoped_key)
     if repeated:
+        # Only an identical request is allowed to reuse a completed idempotency key.
         if repeated.request_hash != request_hash:
             raise ConflictError("idempotency_key_reused", "This idempotency key was already used with different athlete data.")
         stored = session.get(AthleteRecordModel, repeated.athlete_id)
@@ -33,6 +45,7 @@ def create_athlete(
 
     athlete_id = str(uuid4())
     timestamp = utc_timestamp()
+    # Transform the registration draft into the persisted API shape with server-generated fields.
     payload = Athlete.model_validate({
         **request_payload,
         "athleteId": athlete_identifier(athlete_id),
@@ -46,11 +59,13 @@ def create_athlete(
         id=athlete_id,
         owner_id=principal.user_id,
         athlete_id=payload["athleteId"],
+        **athlete_columns(payload),
         encrypted_payload=cipher.encrypt(payload),
         payload_hash=payload_hash(payload),
         version=1,
     )
     session.add(stored)
+    session.flush()
     session.add(AthleteIdempotencyRecord(
         key=scoped_key,
         actor_id=principal.user_id,
@@ -64,7 +79,8 @@ def create_athlete(
         correlation_id=correlation_id,
         details_json=canonical_json({"version": 1}),
     ))
-    session.commit()
+    # Commit profile ciphertext, replay mapping, and audit event together.
+    commit_transaction(session, stored)
     return payload, True
 
 
@@ -74,6 +90,7 @@ def get_athlete(
     principal: Principal,
     athlete_id: str,
 ) -> Optional[Dict[str, Any]]:
+    """Return one owned decrypted athlete profile or none when it is absent or inaccessible."""
     stored = session.scalar(
         select(AthleteRecordModel).where(
             AthleteRecordModel.id == athlete_id,
@@ -88,6 +105,7 @@ def list_athletes(
     cipher: PayloadCipher,
     principal: Principal,
 ) -> List[Dict[str, Any]]:
+    """Return decrypted athlete profiles owned by the principal, newest updated first."""
     records = session.scalars(
         select(AthleteRecordModel)
         .where(AthleteRecordModel.owner_id == principal.user_id)
@@ -106,11 +124,13 @@ def update_athlete(
     idempotency_key: str,
     correlation_id: str,
 ) -> Optional[Dict[str, Any]]:
+    """Merge a versioned profile patch, encrypt the new revision, and record an audit event."""
     request_payload = update.model_dump(mode="json", by_alias=True, exclude_unset=True)
     request_hash = payload_hash(request_payload)
     scoped_key = "%s:%s" % (principal.user_id, idempotency_key)
     repeated = session.get(AthleteIdempotencyRecord, scoped_key)
     if repeated:
+        # Replays bypass mutation after proving the endpoint and payload match the original request.
         if repeated.request_hash != request_hash or repeated.athlete_id != athlete_id:
             raise ConflictError("idempotency_key_reused", "This idempotency key was already used with a different athlete revision.")
         stored = session.get(AthleteRecordModel, athlete_id)
@@ -127,9 +147,11 @@ def update_athlete(
     if not stored:
         return None
     if expected_version != stored.version or update.version != stored.version:
+        # Require both HTTP and request-body versions to prevent stale clients from overwriting changes.
         raise ConflictError("athlete_version_conflict", "The athlete profile has a newer server version.")
 
     current = cipher.decrypt(stored.encrypted_payload)
+    # Excluding unset values means omitted fields retain their current encrypted payload values.
     changes = update.changes.model_dump(mode="json", by_alias=True, exclude_unset=True)
     payload = Athlete.model_validate({
         **current,
@@ -141,6 +163,7 @@ def update_athlete(
     stored.encrypted_payload = cipher.encrypt(payload)
     stored.payload_hash = payload_hash(payload)
     stored.version += 1
+    apply_athlete_columns(stored, payload)
     session.add(AthleteIdempotencyRecord(
         key=scoped_key,
         actor_id=principal.user_id,
@@ -154,7 +177,7 @@ def update_athlete(
         correlation_id=correlation_id,
         details_json=canonical_json({"version": stored.version}),
     ))
-    session.commit()
+    commit_transaction(session, stored)
     return payload
 
 
@@ -166,12 +189,14 @@ def synchronize_athlete(
     idempotency_key: str,
     correlation_id: str,
 ) -> Tuple[Optional[Dict[str, Any]], bool]:
+    """Apply an offline athlete revision while preserving its local ID and public athlete identifier."""
     payload = athlete.model_dump(mode="json", by_alias=True)
     request_hash = payload_hash(payload)
     athlete_id = str(athlete.id)
     scoped_key = "%s:%s" % (principal.user_id, idempotency_key)
     repeated = session.get(AthleteIdempotencyRecord, scoped_key)
     if repeated:
+        # A retry returns the committed server representation without applying a second mutation.
         if repeated.request_hash != request_hash or repeated.athlete_id != athlete_id:
             raise ConflictError("idempotency_key_reused", "This idempotency key was already used with a different athlete revision.")
         stored = session.get(AthleteRecordModel, athlete_id)
@@ -182,6 +207,7 @@ def synchronize_athlete(
     stored = session.get(AthleteRecordModel, athlete_id)
     created = stored is None
     if stored:
+        # An existing record must remain owned by the caller and keep its stable athlete identifier.
         if stored.owner_id != principal.user_id:
             return None, False
         if stored.athlete_id != athlete.athlete_id:
@@ -197,21 +223,24 @@ def synchronize_athlete(
                 request_hash=request_hash,
                 athlete_id=athlete_id,
             ))
-            session.commit()
+            commit_transaction(session, stored)
             return cipher.decrypt(stored.encrypted_payload), False
         stored.encrypted_payload = cipher.encrypt(payload)
         stored.payload_hash = request_hash
         stored.version = athlete.version
+        apply_athlete_columns(stored, payload)
     else:
         stored = AthleteRecordModel(
             id=athlete_id,
             owner_id=principal.user_id,
             athlete_id=athlete.athlete_id,
+            **athlete_columns(payload),
             encrypted_payload=cipher.encrypt(payload),
             payload_hash=request_hash,
             version=athlete.version,
         )
         session.add(stored)
+        session.flush()
 
     session.add(AthleteIdempotencyRecord(
         key=scoped_key,
@@ -226,13 +255,64 @@ def synchronize_athlete(
         correlation_id=correlation_id,
         details_json=canonical_json({"created": created, "version": athlete.version}),
     ))
-    session.commit()
+    commit_transaction(session, stored)
     return payload, created
 
 
 def athlete_identifier(identifier: str) -> str:
+    """Create a readable athlete ID from the current year and a UUID-derived suffix."""
     return "ATH-%s-%s" % (datetime.now(timezone.utc).year, identifier.replace("-", "").upper()[:12])
 
 
 def utc_timestamp() -> str:
+    """Return an ISO-8601 UTC timestamp serialized with the conventional Z suffix."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def athlete_columns(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract ORM query columns from the canonical encrypted athlete payload."""
+    return {
+        "full_name": payload["fullName"],
+        "date_of_birth": payload["dateOfBirth"],
+        "gender": payload["gender"],
+        "sport": payload["sport"],
+        "discipline": payload["discipline"],
+        "height_cm": payload.get("heightCm"),
+        "weight_kg": payload.get("weightKg"),
+    }
+
+
+def apply_athlete_columns(stored: AthleteRecordModel, payload: Dict[str, Any]) -> None:
+    """Keep indexed ORM columns in sync with the encrypted athlete payload revision."""
+    for column, value in athlete_columns(payload).items():
+        setattr(stored, column, value)
+
+
+def delete_athlete(session: Session, principal: Principal, athlete_id: str, correlation_id: str) -> bool:
+    """Permanently delete one owned athlete and its database-cascaded assessment history."""
+    stored = session.scalar(
+        select(AthleteRecordModel).where(
+            AthleteRecordModel.id == athlete_id,
+            AthleteRecordModel.owner_id == principal.user_id,
+        )
+    )
+    if not stored:
+        return False
+    attempt_ids = session.scalars(
+        select(AssessmentAttemptRecord.id).where(AssessmentAttemptRecord.athlete_id == athlete_id)
+    ).all()
+    if attempt_ids:
+        session.execute(delete(IdempotencyRecord).where(IdempotencyRecord.attempt_id.in_(attempt_ids)))
+    session.execute(
+        delete(AthleteIdempotencyRecord).where(AthleteIdempotencyRecord.athlete_id == athlete_id)
+    )
+    session.add(AuditEvent(
+        actor_id=principal.user_id,
+        action="athlete.deleted",
+        resource_id=athlete_id,
+        correlation_id=correlation_id,
+        details_json=canonical_json({"version": stored.version}),
+    ))
+    session.delete(stored)
+    commit_transaction(session)
+    return True

@@ -19,7 +19,7 @@ import {
   isCoachPerformanceScoreValid,
   type CoachPerformanceLevel,
 } from "@/lib/coach-performance-scoring";
-import { LocalAssessmentRepository } from "@/lib/local-assessment-repository";
+import { PersistentAssessmentRepository } from "@/lib/persistent-assessment-repository";
 import { LocalCaptureRepository } from "@/lib/local-capture-repository";
 import { analyzeVideoPose } from "@/lib/mediapipe-pose-analysis";
 import { evaluateProvisionalCapture } from "@/lib/provisional-evaluator";
@@ -71,7 +71,7 @@ function AssessmentResult() {
     }
 
     let active = true;
-    const repository = new LocalAssessmentRepository();
+    const repository = new PersistentAssessmentRepository(athlete.id);
     void repository
       .getById(attemptId)
       .then((storedAttempt) => {
@@ -94,7 +94,7 @@ function AssessmentResult() {
         }
       })
       .catch(console.error)
-      .finally(() => repository.close());
+      .finally(() => undefined);
 
     return () => {
       active = false;
@@ -194,7 +194,7 @@ function AssessmentResult() {
 
     setSavingMetric(true);
     setMetricError(null);
-    const repository = new LocalAssessmentRepository();
+    const repository = new PersistentAssessmentRepository(athlete.id);
     try {
       setAttempt(
         await repository.updateCoachMetricValidation(
@@ -211,7 +211,6 @@ function AssessmentResult() {
       console.error(error);
       setMetricError("The coach-validated result could not be saved. Refresh and try again.");
     } finally {
-      repository.close();
       setSavingMetric(false);
     }
   }
@@ -221,7 +220,7 @@ function AssessmentResult() {
 
     setReanalyzing(true);
     setReanalysisError(null);
-    const assessmentRepository = new LocalAssessmentRepository();
+    const assessmentRepository = new PersistentAssessmentRepository(athlete.id);
     const captureRepository = new LocalCaptureRepository();
     try {
       const capture = await captureRepository.getById(attempt.captureId);
@@ -246,7 +245,6 @@ function AssessmentResult() {
           : "The saved video could not be re-analyzed. Record or upload a new clip.",
       );
     } finally {
-      assessmentRepository.close();
       captureRepository.close();
       setReanalyzing(false);
     }
@@ -257,7 +255,7 @@ function AssessmentResult() {
 
     setUpdatingReview(true);
     setReviewError(null);
-    const repository = new LocalAssessmentRepository();
+    const repository = new PersistentAssessmentRepository(athlete.id);
     try {
       setAttempt(await repository.updateReviewStatus(attempt.id, reviewStatus, attempt.version));
     } catch (error) {
@@ -268,7 +266,6 @@ function AssessmentResult() {
           : "The coach review could not be saved. Refresh and try again.",
       );
     } finally {
-      repository.close();
       setUpdatingReview(false);
     }
   }
@@ -349,8 +346,8 @@ function AssessmentResult() {
         <section className="mt-3 rounded-2xl bg-card p-5 shadow-card">
           <h2 className="text-sm font-semibold">Capture Validation</h2>
           <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            {evaluation.validationReasons.map((reason) => (
-              <li key={reason} className="flex gap-2">
+            {evaluation.validationReasons.map((reason, index) => (
+              <li key={`${index}-${reason}`} className="flex gap-2">
                 <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
                 <span>{reason}</span>
               </li>

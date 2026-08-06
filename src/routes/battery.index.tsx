@@ -28,7 +28,7 @@ function AssessmentSummary() {
 
   return (
     <AppShell title="Assessment Summary" subtitle={athlete.name} backTo="/select-athlete">
-      <section className="rounded-2xl bg-card p-5 shadow-card">
+      <section className="fitness-panel fitness-enter p-5">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
           <span className="bg-gradient-primary grid size-14 shrink-0 place-items-center rounded-2xl font-display font-bold text-primary-foreground">
             {initials(athlete.name)}
@@ -62,7 +62,7 @@ function AssessmentSummary() {
         </Link>
       </section>
 
-      <section className="mt-3 rounded-2xl bg-card p-5 shadow-card">
+      <section className="fitness-panel mt-4 p-5">
         <div className="flex items-center justify-between text-sm">
           <h2 className="font-semibold">Overall Progress</h2>
           <span className="font-display text-lg font-bold text-primary">{progress}%</span>
@@ -83,7 +83,7 @@ function AssessmentSummary() {
         ) : null}
       </section>
 
-      <p className="mt-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+      <p className="glass-surface mt-4 border-primary/20 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         Prototype workflow: AI-derived measurements and scores are provisional estimates pending
         coach validation, approved test protocols, and model calibration.
       </p>
@@ -91,7 +91,7 @@ function AssessmentSummary() {
       <div className="mt-4 space-y-3">
         {summary.tests.map(({ attempt, state, test }) => {
           return (
-            <article key={test.id} className="rounded-2xl bg-card p-5 shadow-card">
+            <article key={test.id} className="fitness-panel action-lift p-5 hover:action-lift-hover">
               <div className="flex items-center gap-3">
                 <span className="bg-gradient-primary grid size-11 shrink-0 place-items-center rounded-2xl text-primary-foreground">
                   <Activity className="size-5" />
@@ -113,7 +113,7 @@ function AssessmentSummary() {
                 <Link
                   to="/battery/$testId"
                   params={{ testId: test.id }}
-                  className="bg-gradient-primary mt-4 flex h-13 items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
+                  className="bg-gradient-primary action-lift mt-4 flex h-13 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-primary-foreground shadow-card hover:action-lift-hover"
                 >
                   <PlayCircle className="size-5" />
                   {state === "needs-retest" ? "Retake Test" : "Start Test"}
@@ -123,7 +123,7 @@ function AssessmentSummary() {
                   <Link
                     to="/battery/$testId"
                     params={{ testId: test.id }}
-                    className="flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-semibold text-primary transition-transform active:scale-[0.98]"
+                    className="action-lift flex items-center justify-center gap-2 rounded-xl bg-secondary py-3 text-sm font-semibold text-primary hover:action-lift-hover"
                   >
                     <RotateCcw className="size-4" />
                     Retake
@@ -132,7 +132,7 @@ function AssessmentSummary() {
                     to="/battery/$testId/result"
                     params={{ testId: test.id }}
                     search={{ attemptId: attempt?.id, measurement: undefined }}
-                    className="bg-gradient-primary flex items-center justify-center rounded-2xl py-3 text-sm font-semibold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
+                    className="bg-gradient-primary action-lift flex items-center justify-center rounded-xl py-3 text-sm font-semibold text-primary-foreground shadow-card hover:action-lift-hover"
                   >
                     View Result
                   </Link>
@@ -146,7 +146,7 @@ function AssessmentSummary() {
       {summary.reportReady ? (
         <Link
           to="/report"
-          className="bg-gradient-primary mt-5 flex h-14 items-center justify-center gap-2 rounded-2xl text-base font-semibold text-primary-foreground shadow-card transition-transform active:scale-[0.98]"
+          className="bg-gradient-primary action-lift mt-5 flex h-14 items-center justify-center gap-2 rounded-xl text-base font-semibold text-primary-foreground shadow-card hover:action-lift-hover"
         >
           <FileText className="size-5" />
           Generate Final Report
@@ -154,7 +154,7 @@ function AssessmentSummary() {
       ) : (
         <button
           disabled
-          className="mt-5 flex h-14 w-full cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-secondary text-base font-semibold text-muted-foreground"
+          className="fitness-panel mt-5 flex h-14 w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl text-base font-semibold text-muted-foreground"
         >
           <FileText className="size-5" />
           Generate Final Report

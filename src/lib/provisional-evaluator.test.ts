@@ -68,7 +68,7 @@ describe("provisional capture evaluator", () => {
     });
   });
 
-  it("persists a range-validated AI sprint estimate when pose motion is available", () => {
+  it("keeps a sprint capture pending coach timing when course lines are not verified", () => {
     const outcome = evaluateProvisionalCapture(
       getBatteryTest("30m-sprint"),
       { durationSeconds: 7.4, mimeType: "video/mp4" },
@@ -95,12 +95,15 @@ describe("provisional capture evaluator", () => {
     );
 
     expect(outcome).toMatchObject({
-      level: "Good",
-      measurement: { label: "30m Sprint", unit: "s", value: 7.4 },
-      score: 78,
+      level: "Not scored",
+      measurement: null,
+      score: null,
       source: "mediapipe-pose",
       state: "requires-coach-review",
     });
+    expect(outcome.validationReasons).toContain(
+      "30m Sprint scoring requires verified start and finish lines with an approved timing method; confirm the time with the coach.",
+    );
   });
 
   it("requires a retake when MediaPipe landmark quality is below the minimum threshold", () => {
