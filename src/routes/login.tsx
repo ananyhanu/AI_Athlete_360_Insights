@@ -300,6 +300,9 @@ function AuthField({ children, icon, id, label }: { children: React.ReactNode; i
 }
 
 function authenticationError(error: unknown) {
+  if (error instanceof Error && error.message === "The assessment API is not configured.") {
+    return "Sign-in is unavailable because this deployment has no assessment API URL configured.";
+  }
   if (!(error instanceof ApiError)) return "Sign-in could not be completed. Check the service connection and try again.";
   if (error.code === "invalid_credentials") return "Email or password is incorrect.";
   if (error.code === "verification_required") return "Verify your email link or mobile OTP before signing in.";

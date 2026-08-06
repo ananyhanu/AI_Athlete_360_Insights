@@ -14,6 +14,7 @@ The application is deliberately designed to distinguish an observed AI estimate 
 - [Local data, privacy, and security](#local-data-privacy-and-security)
 - [Frontend setup](#frontend-setup)
 - [Backend API setup](#backend-api-setup)
+- [Vercel deployment](#vercel-deployment)
 - [API reference](#api-reference)
 - [Testing and build](#testing-and-build)
 - [Demo-video evidence](#demo-video-evidence)
@@ -272,6 +273,22 @@ For local testing, set `AA360_EMAIL_DELIVERY_MODE=console` and `AA360_MOBILE_OTP
 For Google, register `${AA360_API_PUBLIC_URL}/v1/auth/google/callback` as an authorized redirect URI in the Google Cloud OAuth client. For government SSO, obtain the approved authorization, token, and userinfo URLs from the government identity team and register `${AA360_API_PUBLIC_URL}/v1/auth/government/callback`. The provider must return a verified email claim (`email_verified: true`) from its userinfo endpoint. Keep all client secrets in the deployment secret manager, never in the frontend or repository.
 
 The Docker image applies Alembic migrations before starting Uvicorn. For an API health check, call `GET /healthz`; a healthy response is `{ "status": "ok" }`.
+
+## Vercel deployment
+
+Vercel deploys the React frontend only. It cannot use a local `http://127.0.0.1:8000` API or the SQLite file on a visitor's device. Deploy the [backend](backend) Docker service to a container platform with persistent PostgreSQL, such as Render, Railway, Fly.io, or a managed container service, before deploying the frontend.
+
+1. Deploy the `backend` directory with its Dockerfile and provision PostgreSQL. Configure the backend service with the production values from [backend/.env.example](backend/.env.example), including `AA360_DATABASE_URL`, `AA360_JWT_SECRET`, and `AA360_DATA_ENCRYPTION_KEY`.
+2. Set `AA360_API_PUBLIC_URL` to the public HTTPS API URL, `AA360_APP_PUBLIC_URL` to the Vercel URL, `AA360_CORS_ORIGINS` to the Vercel URL, and `AA360_TRUSTED_HOSTS` to the API host. Confirm `https://your-api.example.com/healthz` returns `{ "status": "ok" }`.
+3. In Vercel, open the frontend project **Settings** > **Environment Variables** and add the Production variable below. Use the API origin only, with no `/v1` suffix:
+
+	```text
+	VITE_ASSESSMENT_API_URL=https://your-api.example.com
+	```
+
+4. Redeploy the Vercel frontend. `VITE_*` values are embedded at build time, so adding or changing this setting does not update an existing deployment until it is rebuilt.
+
+For real verification messages, configure SMTP and Twilio variables on the backend service. Console delivery is local-development-only and cannot send email or SMS from a deployed Vercel frontend.
 
 ## API reference
 

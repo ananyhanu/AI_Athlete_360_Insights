@@ -10,8 +10,12 @@ export type ConfiguredAssessmentSyncResult =
 
 let activeSynchronization: Promise<ConfiguredAssessmentSyncResult> | undefined;
 
+const defaultAssessmentApiUrl = import.meta.env["VITE_ASSESSMENT_API_URL"] ?? (
+  import.meta.env.DEV ? "http://127.0.0.1:8000" : ""
+);
+
 export function assessmentApiBaseUrl(
-  value = import.meta.env["VITE_ASSESSMENT_API_URL"] ?? "http://127.0.0.1:8000",
+  value = defaultAssessmentApiUrl,
 ) {
   if (!value?.trim()) return null;
 
