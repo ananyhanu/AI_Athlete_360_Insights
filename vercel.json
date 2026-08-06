@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.py": {
+      "runtime": "python3.12",
+      "excludeFiles": "{backend/tests/**,backend/alembic/**,sample_pic/**,sample_video/**,public/mediapipe/**,public/models/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/healthz",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/v1/(.*)",
+      "destination": "/api/index.py"
+    }
+  ]
+}

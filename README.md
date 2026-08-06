@@ -278,6 +278,28 @@ The Docker image applies Alembic migrations before starting Uvicorn. For an API 
 
 Vercel deploys the React frontend only. It cannot use a local `http://127.0.0.1:8000` API or the SQLite file on a visitor's device. Deploy the [backend](backend) Docker service to a container platform with persistent PostgreSQL, such as Render, Railway, Fly.io, or a managed container service, before deploying the frontend.
 
+### Vercel-only deployment
+
+The repository includes a Vercel Python function at [api/index.py](api/index.py). It serves `/v1/*` and `/healthz` from the same Vercel domain as the frontend, so no `VITE_ASSESSMENT_API_URL` value is needed after this deployment mode is configured.
+
+1. In Vercel, select the `pre-prod` branch and deploy the project again. Vercel detects the root [requirements.txt](requirements.txt), installs the FastAPI backend dependencies, and deploys the `/api/index.py` function.
+2. In **Vercel Marketplace**, install the Neon Postgres integration for this project. Neon offers a free tier. Copy its connection string and add it in **Vercel Project Settings** > **Environment Variables** as `AA360_DATABASE_URL` for the Production environment.
+3. Add the following Production environment variables in Vercel. Replace `YOUR-VERCEL-PROJECT.vercel.app` with the actual deployed domain:
+
+	```text
+	AA360_ENVIRONMENT=production
+	AA360_JWT_SECRET=<a random secret with at least 32 characters>
+	AA360_DATA_ENCRYPTION_KEY=<Fernet key>
+	AA360_CORS_ORIGINS=https://YOUR-VERCEL-PROJECT.vercel.app
+	AA360_TRUSTED_HOSTS=YOUR-VERCEL-PROJECT.vercel.app
+	AA360_API_PUBLIC_URL=https://YOUR-VERCEL-PROJECT.vercel.app
+	AA360_APP_PUBLIC_URL=https://YOUR-VERCEL-PROJECT.vercel.app
+	```
+
+4. Redeploy in Vercel, then open `https://YOUR-VERCEL-PROJECT.vercel.app/healthz`. It must return `{ "status": "ok" }` before attempting sign-in.
+
+The Neon database is still required: Vercel Functions have temporary filesystems, so deploying the local SQLite file would lose users and athlete data between function instances.
+
 ### Render Blueprint
 
 The included [render.yaml](render.yaml) provisions the FastAPI service and a managed PostgreSQL database. In Render, choose **New** > **Blueprint**, connect this repository, select the `pre-prod` branch, and approve the proposed resources. Render asks for values marked as `sync: false`; supply the following after it assigns the API URL:
