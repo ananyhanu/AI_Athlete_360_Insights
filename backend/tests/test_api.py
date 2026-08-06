@@ -19,6 +19,15 @@ from backend.app.security import hash_password
 class ApiTest(unittest.TestCase):
     """Exercise FastAPI endpoints against a disposable SQLite database per test."""
 
+    def test_normalizes_managed_postgres_urls_to_the_psycopg_driver(self):
+        """Allow managed hosts to supply their standard PostgreSQL connection URL."""
+        settings = Settings(database_url="postgresql://user:password@db.example.com:5432/aiathlete")
+
+        self.assertEqual(
+            settings.database_url,
+            "postgresql+psycopg://user:password@db.example.com:5432/aiathlete",
+        )
+
     def setUp(self):
         """Create an isolated application, client, and verified coach account for one test."""
         # A real temporary SQLite file allows the test client and SQLAlchemy to share durable state.

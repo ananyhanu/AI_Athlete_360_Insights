@@ -3,6 +3,7 @@
 import base64
 from typing import List, Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +41,16 @@ class Settings(BaseSettings):
     government_sso_client_id: str = ""
     government_sso_client_secret: str = ""
     government_sso_scope: str = "openid email profile"
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_for_postgres(cls, value: str) -> str:
+        """Use the installed Psycopg 3 driver for standard managed PostgreSQL URLs."""
+        if value.startswith("postgres://"):
+            return "postgresql+psycopg://" + value.removeprefix("postgres://")
+        if value.startswith("postgresql://"):
+            return "postgresql+psycopg://" + value.removeprefix("postgresql://")
+        return value
 
     def validate_secrets(self) -> None:
         """Reject missing or weak secrets before a production process accepts requests."""

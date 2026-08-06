@@ -278,6 +278,30 @@ The Docker image applies Alembic migrations before starting Uvicorn. For an API 
 
 Vercel deploys the React frontend only. It cannot use a local `http://127.0.0.1:8000` API or the SQLite file on a visitor's device. Deploy the [backend](backend) Docker service to a container platform with persistent PostgreSQL, such as Render, Railway, Fly.io, or a managed container service, before deploying the frontend.
 
+### Render Blueprint
+
+The included [render.yaml](render.yaml) provisions the FastAPI service and a managed PostgreSQL database. In Render, choose **New** > **Blueprint**, connect this repository, select the `pre-prod` branch, and approve the proposed resources. Render asks for values marked as `sync: false`; supply the following after it assigns the API URL:
+
+```text
+AA360_DATA_ENCRYPTION_KEY=<Fernet key generated below>
+AA360_CORS_ORIGINS=https://YOUR-VERCEL-PROJECT.vercel.app
+AA360_TRUSTED_HOSTS=YOUR-RENDER-API.onrender.com
+AA360_API_PUBLIC_URL=https://YOUR-RENDER-API.onrender.com
+AA360_APP_PUBLIC_URL=https://YOUR-VERCEL-PROJECT.vercel.app
+AA360_EMAIL_DELIVERY_MODE=smtp
+AA360_MOBILE_OTP_DELIVERY_MODE=twilio
+```
+
+Generate the Fernet value locally and paste its output only into Render's secret field:
+
+```sh
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Set the SMTP and Twilio credential variables from [backend/.env.example](backend/.env.example) in Render as well. Do not add secrets to GitHub or Vercel.
+
+### Connect Vercel
+
 1. Deploy the `backend` directory with its Dockerfile and provision PostgreSQL. Configure the backend service with the production values from [backend/.env.example](backend/.env.example), including `AA360_DATABASE_URL`, `AA360_JWT_SECRET`, and `AA360_DATA_ENCRYPTION_KEY`.
 2. Set `AA360_API_PUBLIC_URL` to the public HTTPS API URL, `AA360_APP_PUBLIC_URL` to the Vercel URL, `AA360_CORS_ORIGINS` to the Vercel URL, and `AA360_TRUSTED_HOSTS` to the API host. Confirm `https://your-api.example.com/healthz` returns `{ "status": "ok" }`.
 3. In Vercel, open the frontend project **Settings** > **Environment Variables** and add the Production variable below. Use the API origin only, with no `/v1` suffix:

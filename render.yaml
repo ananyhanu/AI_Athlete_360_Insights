@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: ai-athlete-360-api
+    runtime: docker
+    rootDir: backend
+    healthCheckPath: /healthz
+    envVars:
+      - key: AA360_ENVIRONMENT
+        value: production
+      - key: AA360_DATABASE_URL
+        fromDatabase:
+          name: ai-athlete-360-postgres
+          property: connectionString
+      - key: AA360_JWT_SECRET
+        generateValue: true
+      - key: AA360_DATA_ENCRYPTION_KEY
+        sync: false
+      - key: AA360_CORS_ORIGINS
+        sync: false
+      - key: AA360_TRUSTED_HOSTS
+        sync: false
+      - key: AA360_API_PUBLIC_URL
+        sync: false
+      - key: AA360_APP_PUBLIC_URL
+        sync: false
+      - key: AA360_EMAIL_DELIVERY_MODE
+        sync: false
+      - key: AA360_MOBILE_OTP_DELIVERY_MODE
+        sync: false
+
+databases:
+  - name: ai-athlete-360-postgres
+    databaseName: aiathlete
+    user: aiathlete
