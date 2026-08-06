@@ -3,7 +3,7 @@
 import base64
 from typing import List, Literal
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,10 +11,18 @@ class Settings(BaseSettings):
     """Typed application settings with safe development defaults and production checks."""
 
     # Pydantic reads local development values from .env while ignoring unrelated variables.
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="AA360_", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="AA360_",
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     environment: Literal["development", "test", "production"] = "development"
-    database_url: str = "sqlite:///./data/app.db"
+    database_url: str = Field(
+        default="sqlite:///./data/app.db",
+        validation_alias=AliasChoices("AA360_DATABASE_URL", "POSTGRES_URL"),
+    )
     jwt_access_token_minutes: int = 30
     jwt_secret: str = ""
     data_encryption_key: str = ""

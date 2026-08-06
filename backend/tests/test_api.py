@@ -28,6 +28,20 @@ class ApiTest(unittest.TestCase):
             "postgresql+psycopg://user:password@db.example.com:5432/aiathlete",
         )
 
+    def test_accepts_the_vercel_marketplace_postgres_environment_variable(self):
+        """Use Neon's Vercel-provided connection string without a duplicate setting."""
+        with patch.dict(
+            os.environ,
+            {"POSTGRES_URL": "postgresql://user:password@db.example.com:5432/aiathlete"},
+            clear=True,
+        ):
+            settings = Settings()
+
+        self.assertEqual(
+            settings.database_url,
+            "postgresql+psycopg://user:password@db.example.com:5432/aiathlete",
+        )
+
     def setUp(self):
         """Create an isolated application, client, and verified coach account for one test."""
         # A real temporary SQLite file allows the test client and SQLAlchemy to share durable state.

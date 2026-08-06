@@ -283,7 +283,7 @@ Vercel deploys the React frontend only. It cannot use a local `http://127.0.0.1:
 The repository includes a Vercel Python function at [api/index.py](api/index.py). It serves `/v1/*` and `/healthz` from the same Vercel domain as the frontend, so no `VITE_ASSESSMENT_API_URL` value is needed after this deployment mode is configured.
 
 1. In Vercel, select the `pre-prod` branch and deploy the project again. Vercel detects the root [requirements.txt](requirements.txt), installs the FastAPI backend dependencies, and deploys the `/api/index.py` function.
-2. In **Vercel Marketplace**, install the Neon Postgres integration for this project. Neon offers a free tier. Copy its connection string and add it in **Vercel Project Settings** > **Environment Variables** as `AA360_DATABASE_URL` for the Production environment.
+2. In **Vercel Marketplace**, install the Neon Postgres integration for this project. Neon offers a free tier and provides `POSTGRES_URL` automatically. The backend accepts this value directly, so do not add a duplicate `AA360_DATABASE_URL` setting.
 3. Add the following Production environment variables in Vercel. Replace `YOUR-VERCEL-PROJECT.vercel.app` with the actual deployed domain:
 
 	```text
